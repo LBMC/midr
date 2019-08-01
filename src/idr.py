@@ -8,7 +8,6 @@ import math
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
-from pynverse import inversefunc
 from scipy.optimize import brentq
 from copy import deepcopy
 import numpy as np
@@ -29,9 +28,9 @@ RHO_1_MAX = 0.99
 PI_1_MIN = 0.01
 PI_1_MAX = 0.99
 THETA_INIT = {'pi_1': 0.5,
-              'mu_1': 0.1,
+              'mu_1': 1.0,
               'sigma_1': 1.0,
-              'rho_1': 0.2}
+              'rho_1': 0.3}
 
 
 def read_peak(file_name):
@@ -132,15 +131,14 @@ def compute_z_from_u(u, k, theta):
     G = lambda x: G_function(x,
                              theta=theta)
     def inv_cdf(r, start=-100, stop=100):
-            assert r > 0 and r < 1
-            return brentq(lambda x: G(x) - r, start, stop)
+        assert r > 0 and r < 1
+        return brentq(lambda x: G(x) - r, start, stop)
     z = np.empty_like(u)
     x = np.empty_like(u)
     for i in range(u.shape[0]):
         for j in range(u.shape[1]):
             z[i][j] = inv_cdf(u[i][j])
             x[i][j] = G(u[i][j])
-
     for j in range(z.shape[1]):
         pylab.subplot(3,1,1)
         pylab.hist(z[:, j], bins=1000, label=str(j))
@@ -148,6 +146,7 @@ def compute_z_from_u(u, k, theta):
         pylab.scatter(u[:, j], z[:, j], label=str(j), c=k)
         pylab.subplot(3,1,3)
         pylab.scatter(u[:, j], x[:, j], label=str(j), c=k)
+    print(theta)
     pylab.show()
     return z
 
@@ -193,6 +192,26 @@ def E_step_K(z, k, theta):
                  (float(theta['pi_1']) * h1_x[i] +
                   (1.0 - float(theta['pi_1'])) * h0_x[i])
     return k
+
+def local_idr(z, lidr, theta):
+    """
+    compute expectation of Ki
+    """
+    h0_x = h_function(z=z,
+                      m=z.shape[1],
+                      mu=0,
+                      sigma_sq=1,
+                      rho=0)
+    h1_x = h_function(z=z,
+                      m=z.shape[1],
+                      mu=theta['mu_1'],
+                      sigma_sq=theta['sigma_1'],
+                      rho=theta['rho_1'])
+    for i in range(z.shape[0]):
+        lidr[i] = (1.0 - float(theta['pi_1']) * h0_x[i]) / \
+                 (float(theta['pi_1']) * h1_x[i] +
+                  (1.0 - float(theta['pi_1'])) * h0_x[i])
+    return lidr
 
 
 def M_step_pi_1(k):
@@ -313,7 +332,7 @@ def EM_pseudo_data(z,
     ll_t1 = -np.inf
     while abs(ll - ll_t1) > threshold:
         ll = ll_t1
-        theta = theta_t1.copy()
+        theta = deepcopy(theta_t1)
         k = E_step_K(z=z, k=k, theta=theta)
         theta_t1['pi_1'] = M_step_pi_1(k=k)
         theta_t1['mu_1'] = M_step_mu_1(z=z, k=k)
@@ -332,22 +351,26 @@ def pseudo_likelihood(x, threshold=0.001):
     pseudo likelhood optimization for the copula model parameters
     """
     theta = THETA_INIT
+    theta_t1 = THETA_INIT
     k = [0.0] * int(x.shape[0])
+    lidr = [0.0] * int(x.shape[0])
     u = compute_empirical_marginal_cdf(compute_rank(x))
     ll = 0.0
     ll_t1 = -np.inf
     while abs(ll - ll_t1) > threshold:
         ll = ll_t1
-        z = compute_z_from_u(u=u, k=k, theta=theta)
-        (theta, k) = EM_pseudo_data(z=z,
-                                    k=k,
-                                    theta=theta,
-                                    threshold=threshold)
-        ll_t1 = logLikelihood(z=z, k=k, theta=theta)
+        theta = deepcopy(theta_t1)
+        z = compute_z_from_u(u=u, k=k, theta=theta_t1)
+        (theta_t1, k) = EM_pseudo_data(z=z,
+                                       k=k,
+                                       theta=theta,
+                                       threshold=threshold)
+        lidr = local_idr(z=z, lidr=lidr, theta=theta_t1)
+        ll_t1 = logLikelihood(z=z, k=k, theta=theta_t1)
         if ll_t1 - ll < 0.0:
             print("warning: pseudo data decreassing logLikelihood: " + str(ll_t1 - ll))
-            print(theta)
-    return theta
+            print(theta_t1)
+    return (theta_t1, local_idr)
 
 theta_test = {'pi_1': 0.2, 'mu_1': 1, 'sigma_1': 1, 'rho_1': 0.3}
 
@@ -357,8 +380,8 @@ theta_test = {'pi_1': 0.2, 'mu_1': 1, 'sigma_1': 1, 'rho_1': 0.3}
 #                                     sigma_sq=theta_test['sigma_1'],
 #                                     rho=theta_test['rho_1'],
 #                                     pi=theta_test['pi_1'])["X"],
-#                       theta={'pi_1': 0.4,
-#                              'mu_1': 1.0, 'sigma_1': 1.0, 'rho_1': 0.5},
+#                       k=[0.0] * 10000,
+#                       theta=THETA_INIT,
 #                       threshold=0.001)[0])
 print(pseudo_likelihood(sim_m_samples(n=1000,
                                       m=2,
@@ -366,5 +389,5 @@ print(pseudo_likelihood(sim_m_samples(n=1000,
                                       sigma_sq=theta_test['sigma_1'],
                                       rho=theta_test['rho_1'],
                                       pi=theta_test['pi_1'])["X"],
-                        threshold=0.01))
+                        threshold=0.001))
 print(theta_test)
