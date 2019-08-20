@@ -5,13 +5,14 @@ Package to compute IDR from n replicates
 """
 
 import math
+from scipy.stats import rankdata
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
 from scipy.optimize import brentq
 from copy import deepcopy
 import numpy as np
-#  import pandas as pd
+import pandas as pd
 #  import matplotlib.pyplot as plt
 import pylab
 import os
@@ -93,23 +94,23 @@ def compute_rank(x):
     transform x a n*m matrix of score into an n*m matrix of rank ordered by
     row.
     """
+    r = np.empty_like(x)
     for j in range(x.shape[1]):
-        temp = x[:, j].argsort()
-        ranks = np.empty_like(temp)
-        ranks[temp] = np.arange(len(temp))
         # we want the rank to start at 1
-        x[:, j] = ranks + 1
-    return x
+        r[:, j] = rankdata(x[:, j]) + 1
+    return r
 
 
-def compute_empirical_marginal_cdf(x):
+def compute_empirical_marginal_cdf(r):
     """
     normalize ranks to compute empirical marginal cdf and scale by n / (n+1)
     """
-    scaling_factor = float(x.shape[0]) / (float(x.shape[0]) + 1.0)
-    for i in range(x.shape[0]):
-        for j in range(x.shape[1]):
-            x[i][j] = (float(x[i][j]) / float(x.shape[0])) * scaling_factor
+    x = np.empty_like(r)
+    scaling_factor = float(r.shape[0]) / (float(r.shape[0]) + 1.0)
+    for i in range(r.shape[0]):
+        for j in range(r.shape[1]):
+            x[i][j] = (1.0 - (float(r[i][j]) / float(r.shape[0]))) * \
+                scaling_factor
     return x
 
 
@@ -119,8 +120,8 @@ def G_function(z, theta):
     """
     z_norm = (float(z) - float(theta['mu_1'])) / float(theta['sigma_1'])
     u = (float(theta['pi_1']) / float(theta['sigma_1'])) * \
-        norm.cdf((float(z_norm) - float(theta['mu_1'])) / float(theta['sigma_1'])) + \
-        (1.0 - float(theta['pi_1'])) * norm.cdf(z)
+        norm.cdf(z_norm, loc=0, scale=1) + \
+        (1.0 - float(theta['pi_1'])) * norm.cdf(z, loc=0, scale=1)
     return u
 
 
@@ -131,14 +132,14 @@ def compute_z_from_u(u, k, theta):
     G = lambda x: G_function(x,
                              theta=theta)
     def inv_cdf(r, start=-100, stop=100):
-        assert r > 0 and r < 1
+        #  assert r > 0 and r < 1
         return brentq(lambda x: G(x) - r, start, stop)
     z = np.empty_like(u)
     x = np.empty_like(u)
     for i in range(u.shape[0]):
         for j in range(u.shape[1]):
             z[i][j] = inv_cdf(u[i][j])
-            x[i][j] = G(u[i][j])
+            x[i][j] = inv_cdf(G(u[i][j]))
     for j in range(z.shape[1]):
         pylab.subplot(3,1,1)
         pylab.hist(z[:, j], bins=1000, label=str(j))
@@ -170,7 +171,7 @@ def h_function(z, m, mu, sigma_sq, rho):
         print(cov)
         print((mu, sigma_sq, rho))
         quit(-1)
-    return x
+    return pd.Series(x)
 
 
 def E_step_K(z, k, theta):
@@ -182,36 +183,34 @@ def E_step_K(z, k, theta):
                       mu=0,
                       sigma_sq=1,
                       rho=0)
+    h0_x = (1.0 - float(theta['pi_1'])) * h0_x
     h1_x = h_function(z=z,
                       m=z.shape[1],
                       mu=theta['mu_1'],
                       sigma_sq=theta['sigma_1'],
                       rho=theta['rho_1'])
-    for i in range(z.shape[0]):
-        k[i] = (float(theta['pi_1']) * h1_x[i]) / \
-                 (float(theta['pi_1']) * h1_x[i] +
-                  (1.0 - float(theta['pi_1'])) * h0_x[i])
-    return k
+    h1_x = float(theta['pi_1']) * h1_x
+    k = h1_x / (h1_x + h0_x)
+    return k.to_list()
 
 def local_idr(z, lidr, theta):
     """
-    compute expectation of Ki
+    compute local IDR
     """
     h0_x = h_function(z=z,
                       m=z.shape[1],
                       mu=0,
                       sigma_sq=1,
                       rho=0)
+    h0_x = (1.0 - float(theta['pi_1'])) * h0_x
     h1_x = h_function(z=z,
                       m=z.shape[1],
                       mu=theta['mu_1'],
                       sigma_sq=theta['sigma_1'],
                       rho=theta['rho_1'])
-    for i in range(z.shape[0]):
-        lidr[i] = (1.0 - float(theta['pi_1']) * h0_x[i]) / \
-                 (float(theta['pi_1']) * h1_x[i] +
-                  (1.0 - float(theta['pi_1'])) * h0_x[i])
-    return lidr
+    h1_x = float(theta['pi_1']) * h1_x
+    lidr = h0_x / (h1_x + h0_x)
+    return lidr.to_list()
 
 
 def M_step_pi_1(k):
@@ -375,7 +374,7 @@ def pseudo_likelihood(x, threshold=0.001):
 theta_test = {'pi_1': 0.2, 'mu_1': 1, 'sigma_1': 1, 'rho_1': 0.3}
 
 #  print(EM_pseudo_data(sim_m_samples(n=10000,
-#                                     m=4,
+#                                     m=5,
 #                                     mu=theta_test['mu_1'],
 #                                     sigma_sq=theta_test['sigma_1'],
 #                                     rho=theta_test['rho_1'],
