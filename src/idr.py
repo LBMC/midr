@@ -13,6 +13,7 @@ from scipy.optimize import brentq
 from copy import deepcopy
 import numpy as np
 import pandas as pd
+from pynverse import inversefunc
 #  import matplotlib.pyplot as plt
 import pylab
 import os
@@ -29,9 +30,9 @@ RHO_1_MAX = 0.99
 PI_1_MIN = 0.01
 PI_1_MAX = 0.99
 THETA_INIT = {'pi_1': 0.5,
-              'mu_1': 1.0,
+              'mu_1': 2.0,
               'sigma_1': 1.0,
-              'rho_1': 0.3}
+              'rho_1': 0.9}
 
 
 def read_peak(file_name):
@@ -97,7 +98,7 @@ def compute_rank(x):
     r = np.empty_like(x)
     for j in range(x.shape[1]):
         # we want the rank to start at 1
-        r[:, j] = rankdata(x[:, j]) + 1
+        r[:, j] = rankdata(x[:, j])
     return r
 
 
@@ -109,7 +110,7 @@ def compute_empirical_marginal_cdf(r):
     scaling_factor = float(r.shape[0]) / (float(r.shape[0]) + 1.0)
     for i in range(r.shape[0]):
         for j in range(r.shape[1]):
-            x[i][j] = (1.0 - (float(r[i][j]) / float(r.shape[0]))) * \
+            x[i][j] = (float(r[i][j]) / float(r.shape[0])) * \
                 scaling_factor
     return x
 
@@ -131,23 +132,24 @@ def compute_z_from_u(u, k, theta):
     """
     G = lambda x: G_function(x,
                              theta=theta)
-    def inv_cdf(r, start=-100, stop=100):
-        #  assert r > 0 and r < 1
-        return brentq(lambda x: G(x) - r, start, stop)
+    #  def inv_cdf(r, start=-100, stop=100):
+    #      assert r > 0 and r < 1
+    #      return brentq(lambda x: G(x) - r, start, stop)
+    #  inv_cdf = inversefunc(G)
+    def inv_cdf(x):
+        return  inversefunc(G, y_values=x, image=[0,1])
     z = np.empty_like(u)
-    x = np.empty_like(u)
     for i in range(u.shape[0]):
         for j in range(u.shape[1]):
             z[i][j] = inv_cdf(u[i][j])
-            x[i][j] = inv_cdf(G(u[i][j]))
-    for j in range(z.shape[1]):
-        pylab.subplot(3,1,1)
-        pylab.hist(z[:, j], bins=1000, label=str(j))
-        pylab.subplot(3,1,2)
-        pylab.scatter(u[:, j], z[:, j], label=str(j), c=k)
-        pylab.subplot(3,1,3)
-        pylab.scatter(u[:, j], x[:, j], label=str(j), c=k)
     print(theta)
+    for j in range(z.shape[1]):
+        print(max(z[:, j]))
+        pylab.subplot(2, z.shape[1], 1 + j)
+        pylab.hist(z[:, j], bins=100, label=str(j))
+    for j in range(z.shape[1]):
+        pylab.subplot(2, z.shape[1], z.shape[1] + 1 + j)
+        pylab.scatter(u[:, j], z[:, j], label=str(j), c=k)
     pylab.show()
     return z
 
@@ -371,7 +373,7 @@ def pseudo_likelihood(x, threshold=0.001):
             print(theta_t1)
     return (theta_t1, local_idr)
 
-theta_test = {'pi_1': 0.2, 'mu_1': 1, 'sigma_1': 1, 'rho_1': 0.3}
+theta_test = {'pi_1': 0.2, 'mu_1': 5.0, 'sigma_1': 1.0, 'rho_1': 0.9}
 
 #  print(EM_pseudo_data(sim_m_samples(n=10000,
 #                                     m=5,
@@ -388,5 +390,15 @@ print(pseudo_likelihood(sim_m_samples(n=1000,
                                       sigma_sq=theta_test['sigma_1'],
                                       rho=theta_test['rho_1'],
                                       pi=theta_test['pi_1'])["X"],
-                        threshold=0.001))
+                        threshold=0.01))
 print(theta_test)
+
+#  x = sim_m_samples(n=10,
+#                                     m=5,
+#                                     mu=theta_test['mu_1'],
+#                                     sigma_sq=theta_test['sigma_1'],
+#                                     rho=theta_test['rho_1'],
+#                                     pi=theta_test['pi_1'])["X"]
+#  print(x)
+#  print(compute_rank(x))
+#  print(compute_empirical_marginal_cdf(compute_rank(x)))
