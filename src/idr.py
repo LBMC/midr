@@ -5,21 +5,16 @@ Package to compute IDR from n replicates
 """
 
 import math
+from copy import deepcopy
 from scipy.stats import rankdata
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
 #  from scipy.optimize import brentq
-from copy import deepcopy
 import numpy as np
 import pandas as pd
 from pynverse import inversefunc
-#  import matplotlib.pyplot as plt
 import pylab
-import os
-os.environ["DISPLAY"] = ":0"
-import matplotlib
-matplotlib.use('tkagg')
 
 MU_1_MIN = 0.0
 MU_1_MAX = 20.0
@@ -29,10 +24,10 @@ RHO_1_MIN = 0.10
 RHO_1_MAX = 0.99
 PI_1_MIN = 0.01
 PI_1_MAX = 0.99
-THETA_INIT = {'pi_1': 0.5,
-              'mu_1': 4.0,
-              'sigma_1': 1.0,
-              'rho_1': 0.5}
+THETA_INIT = {'pi': 0.5,
+              'mu': 4.0,
+              'sigma': 1.0,
+              'rho': 0.5}
 
 
 def read_peak(file_name):
@@ -42,435 +37,423 @@ def read_peak(file_name):
     return file_name
 
 
-def cov_matrix(m, sigma_sq, rho):
+def cov_matrix(m_sample, theta):
     """
     compute multivariate_normal covariance matrix
     """
-    cov = np.full(shape=(int(m), int(m)),
-                  fill_value=float(rho) * float(sigma_sq))
+    cov = np.full(shape=(int(m_sample), int(m_sample)),
+                  fill_value=float(theta['rho']) * float(theta['sigma']))
     np.fill_diagonal(a=cov,
-                     val=float(sigma_sq))
+                     val=float(theta['sigma']))
     return cov
 
 
-def sim_multivariate_gaussian(n, m, mu, sigma_sq, rho):
+def sim_multivariate_gaussian(n_value, m_sample, theta):
     """
     draw from a multivariate Gaussian distribution
     """
-    cov = cov_matrix(m=m,
-                     sigma_sq=sigma_sq,
-                     rho=rho)
-    x = np.random.multivariate_normal(mean=[float(mu)] * int(m),
-                                      cov=cov,
-                                      size=int(n))
-    return x
+    cov = cov_matrix(m_sample=m_sample,
+                     theta=theta)
+    return np.random.multivariate_normal(mean=[float(theta['mu'])] *
+                                         int(m_sample),
+                                         cov=cov,
+                                         size=int(n_value))
 
 
-def sim_m_samples(n, m, mu, sigma_sq, rho, pi):
+def sim_m_samples(n_value, m_sample, theta):
     """
     simulate sample where position score are drawn from two different
     multivariate Gaussian distribution
     """
-    x = sim_multivariate_gaussian(n=n,
-                                  m=m,
-                                  mu=mu,
-                                  sigma_sq=sigma_sq,
-                                  rho=rho)
-    spurious = sim_multivariate_gaussian(n=n,
-                                         m=m,
-                                         mu=0,
-                                         sigma_sq=1,
-                                         rho=0)
-    k = list()
-    for i in range(int(n)):
-        k.append(True)
-        if not bool(bernoulli.rvs(p=pi, size=1)):
-            x[i] = spurious[i]
-            k[i] = False
-    return {'X': x, 'K': k}
+    scores = sim_multivariate_gaussian(n_value=n_value,
+                                       m_sample=m_sample,
+                                       theta=theta)
+    spurious = sim_multivariate_gaussian(n_value=n_value,
+                                         m_sample=m_sample,
+                                         theta={'mu': 0,
+                                                'sigma': 1,
+                                                'rho': 0})
+    k_state = list()
+    for i in range(int(n_value)):
+        k_state.append(True)
+        if not bool(bernoulli.rvs(p=theta['pi'], size=1)):
+            scores[i] = spurious[i]
+            k_state[i] = False
+    return {'X': scores, 'K': k_state}
 
 
-def compute_rank(x):
+def compute_rank(x_score):
     """
     transform x a n*m matrix of score into an n*m matrix of rank ordered by
     row.
     """
-    r = np.empty_like(x)
-    for j in range(x.shape[1]):
+    rank = np.empty_like(x_score)
+    for j in range(x_score.shape[1]):
         # we want the rank to start at 1
-        r[:, j] = rankdata(x[:, j])
-    return r
+        rank[:, j] = rankdata(x_score[:, j])
+    return rank
 
 
-def compute_empirical_marginal_cdf(r):
+def compute_empirical_marginal_cdf(rank):
     """
     normalize ranks to compute empirical marginal cdf and scale by n / (n+1)
     """
-    x = np.empty_like(r)
-    n = float(r.shape[0])
-    m = float(r.shape[1])
-    scaling_factor = n / (n + 1.0)
-    for i in range(int(n)):
-        for j in range(int(m)):
-            x[i][j] = (float(r[i][j]) / n) * scaling_factor
-    return x
+    x_score = np.empty_like(rank)
+    n_value = float(rank.shape[0])
+    m_sample = float(rank.shape[1])
+    scaling_factor = n_value / (n_value + 1.0)
+    for i in range(int(n_value)):
+        for j in range(int(m_sample)):
+            x_score[i][j] = (float(rank[i][j]) / n_value) * scaling_factor
+    return x_score
 
 
-def G_function(z, theta):
+def g_function(z_values, theta):
     """
     compute scalded Gaussian cdf for Copula
     """
-    sigma_1 = np.sqrt(float(theta['sigma_1']))
-    z_norm = (float(z) - float(theta['mu_1'])) / sigma_1
-    pi_1 = float(theta['pi_1']) / sigma_1
-    u = pi_1 * norm.cdf(float(z_norm), loc=0, scale=1) + \
-        (1.0 - pi_1) * norm.cdf(float(z), loc=0, scale=1)
-    return u
+    sigma = np.sqrt(float(theta['sigma']))
+    #  z_norm = (float(z_values) - float(theta['mu'])) / sigma
+    f_pi = float(theta['pi'])  # / sigma
+    return f_pi * norm.cdf(float(z_values), loc=theta['mu'], scale=sigma) + \
+        (1.0 - f_pi) * norm.cdf(float(z_values), loc=0, scale=1)
 
 
-def compute_z_from_u(u, k, theta):
+def compute_z_from_u(u_values, theta):
     """
     compute u_ij from z_ij via the G_j function
     """
-    G = lambda x: G_function(x,
-                             theta=theta)
-    #  G_m1 = lambda r: brentq(f=lambda x: G(x) - r,
-    #                          a=min([-3, theta['mu_1'] - 3]),
-    #                          b=max([3, theta['mu_1'] + 3]),
-    #                          maxiter=1000)
-    G_m1 = lambda r: inversefunc(G,
-                                 y_values=r,
-                                 image=[0, 1],
-                                 open_domain=False,
-                                 domain=[min([-3, theta['mu_1'] - 3]),
-                                         max([3, theta['mu_1'] + 3])])
-    z = np.empty_like(u)
-    for i in range(u.shape[0]):
-        for j in range(u.shape[1]):
-            z[i][j] = G_m1(u[i][j])
-    ## plots
-    #  pylab.hist(z[:, 0], bins=100, label=str(0))
-    #  pylab.subplot(2, 1, 2)
-    #  #  x = np.linspace(start=min(z[:, 0]), stop=max(z[:, 0]), num=1000)
-    #  #  pylab.plot(x, x, label=str(0))
-    #  #  y = np.empty_like(x)
-    #  #  for i in range(len(y)):
-    #  #      y[i] = G(x[i])
-    #  #  pylab.plot(x, y, label=str(0))
-    #  x = np.linspace(start=0.0, stop=1.0, num=1000)
-    #  y = np.empty_like(x)
-    #  for i in range(len(y)):
-    #      y[i] = inv_cdf(x[i])
-    #  pylab.plot(x, y, label=str(0))
-    #  pylab.scatter(u[:, 0], z[:, 0], label=str(0), c=k)
+    # fixed g function for given theta
+    g_f = lambda x_values: g_function(z_values=x_values, theta=theta)
+    # inverse of g functon for given theta
+    g_m1 = lambda x_values: inversefunc(g_f,
+                                        y_values=x_values,
+                                        image=[0, 1],
+                                        open_domain=False,
+                                        domain=[min([-3.0, theta['mu'] - 3.0]),
+                                                max([3.0, theta['mu'] + 3.0])])
+    z_values = np.empty_like(u_values)
+    for i in range(u_values.shape[0]):
+        for j in range(u_values.shape[1]):
+            z_values[i][j] = g_m1(u_values[i][j])
     print(theta)
-    #  pylab.show(block=True)
-    #  # end plots
-    return z
+    return z_values
 
 
-def h_function(z, m, mu, sigma_sq, rho):
+def h_function(z_values, m_sample, theta):
     """
     compute the pdf of h0 or h1
     """
     try:
-        cov = cov_matrix(m=int(m), sigma_sq=float(sigma_sq), rho=float(rho))
-        x = multivariate_normal.pdf(x=z,
-                                    mean=[float(mu)] * int(m),
-                                    cov=cov)
-    except ValueError as e:
-        print("error: h_function: " + str(e))
+        cov = cov_matrix(m_sample=int(m_sample), theta=theta)
+        x_values = multivariate_normal.pdf(x=z_values,
+                                           mean=[float(theta['mu'])] *
+                                           int(m_sample),
+                                           cov=cov)
+    except ValueError as err:
+        print("error: h_function: " + str(err))
         print(cov)
-        print((mu, sigma_sq, rho))
-    except Exception as e:
-        print("error: h_function: " + str(e))
-        print(cov)
-        print((mu, sigma_sq, rho))
-    return pd.Series(x)
+        print(theta)
+    return pd.Series(x_values)
 
 
-def E_step_K(z, k, theta):
+def e_step_k(z_values, k_state, theta):
     """
     compute expectation of Ki
     """
-    h0_x = h_function(z=z,
-                      m=z.shape[1],
-                      mu=0,
-                      sigma_sq=1,
-                      rho=0)
-    h0_x = (1.0 - float(theta['pi_1'])) * h0_x
-    h1_x = h_function(z=z,
-                      m=z.shape[1],
-                      mu=theta['mu_1'],
-                      sigma_sq=theta['sigma_1'],
-                      rho=theta['rho_1'])
-    h1_x = float(theta['pi_1']) * h1_x
-    k = h1_x / (h1_x + h0_x)
-    return k.to_list()
+    h0_x = h_function(z_values=z_values,
+                      m_sample=z_values.shape[1],
+                      theta={'mu': 0,
+                             'sigma': 1,
+                             'rho': 0}
+                      )
+    h0_x = (1.0 - float(theta['pi'])) * h0_x
+    h1_x = h_function(z_values=z_values,
+                      m_sample=z_values.shape[1],
+                      theta=theta
+                      )
+    h1_x = float(theta['pi']) * h1_x
+    k_state = h1_x / (h1_x + h0_x)
+    return k_state.to_list()
 
-def local_idr(z, lidr, theta):
+
+def local_idr(z_values, lidr, theta):
     """
     compute local IDR
     """
-    h0_x = h_function(z=z,
-                      m=z.shape[1],
-                      mu=0,
-                      sigma_sq=1,
-                      rho=0)
-    h0_x = (1.0 - float(theta['pi_1'])) * h0_x
-    h1_x = h_function(z=z,
-                      m=z.shape[1],
-                      mu=theta['mu_1'],
-                      sigma_sq=theta['sigma_1'],
-                      rho=theta['rho_1'])
-    h1_x = float(theta['pi_1']) * h1_x
+    h0_x = h_function(z_values=z_values,
+                      m_sample=z_values.shape[1],
+                      theta={'mu': 0,
+                             'sigma': 1,
+                             'rho': 0}
+                      )
+    h0_x = (1.0 - float(theta['pi'])) * h0_x
+    h1_x = h_function(z_values=z_values,
+                      m_sample=z_values.shape[1],
+                      theta=theta
+                      )
+    h1_x = float(theta['pi']) * h1_x
     lidr = h0_x / (h1_x + h0_x)
     return lidr.to_list()
 
 
-def M_step_pi_1(k):
+def m_step_pi(k_state):
     """
-    compute maximization of pi_1
+    compute maximization of pi
     """
-    pi_1 = float(sum(k)) / float(len(k))
-    #  if pi_1 < PI_1_MIN:
-    #      pi_1 = PI_1_MIN
-    #  if pi_1 > PI_1_MAX:
-    #      pi_1 = PI_1_MAX
-    return pi_1
+    return float(sum(k_state)) / float(len(k_state))
 
 
-def M_step_mu_1(z, k):
+def m_step_mu(z_values, k_state):
     """
-    compute maximization of mu_1
-    0 < mu_1
+    compute maximization of mu
+    0 < mu
     """
-    denominator = float(z.shape[1]) * float(sum(k))
+    denominator = float(z_values.shape[1]) * float(sum(k_state))
     numerator = 0.0
-    for i in range(z.shape[0]):
-        for j in range(z.shape[1]):
-            numerator += float(k[i]) * float(z[i][j])
-    mu_1 = numerator / denominator
-    #  if mu_1 < MU_1_MIN:
-    #      mu_1 = MU_1_MIN
-    #  if mu_1 > MU_1_MAX:
-    #      mu_1 = MU_1_MAX
-    return mu_1
+    for i in range(z_values.shape[0]):
+        for j in range(z_values.shape[1]):
+            numerator += float(k_state[i]) * float(z_values[i][j])
+    return numerator / denominator
 
 
-def M_step_sigma_1(z, k, theta):
+def m_step_sigma(z_values, k_state, theta):
     """
-    compute maximization of sigma_1
+    compute maximization of sigma
     """
     z_norm_sq = 0.0
-    for i in range(z.shape[0]):
-        for j in range(z.shape[1]):
-            z_norm_sq += float(k[i]) * (float(z[i][j]) -
-                                        float(theta['mu_1']))**2
-    sigma_1 = (1.0/ (float(z.shape[1]) * float(sum(k)))) * z_norm_sq
-    #  if sigma_1 < SIGMA_1_MIN:
-    #      sigma_1 = SIGMA_1_MIN
-    #  if sigma_1 > SIGMA_1_MAX:
-    #      sigma_1 = SIGMA_1_MAX
-    return sigma_1
+    for i in range(z_values.shape[0]):
+        for j in range(z_values.shape[1]):
+            z_norm_sq += float(k_state[i]) * (float(z_values[i][j]) -
+                                              float(theta['mu']))**2
+    return (1.0 / (float(z_values.shape[1]) * float(sum(k_state)))) * z_norm_sq
 
 
-def M_step_rho_1(z, k, theta):
+def m_step_rho(z_values, k_state, theta):
     """
-    compute maximization of rho_1
-    0 < rho_1 <= 1
+    compute maximization of rho
+    0 < rho <= 1
     """
-    nb_non_diag = float(z.shape[1])**2 - float(z.shape[1])
+    nb_non_diag = float(z_values.shape[1])**2 - float(z_values.shape[1])
     z_norm_time = 0.0
     z_norm_time_i = 0.0
-    for i in range(z.shape[0]):
+    for i in range(z_values.shape[0]):
         z_norm_time_i = 0.0
-        for j in range(z.shape[1]):
-            for l in range(z.shape[1]):
-                if not l == j:
-                    z_norm_time_i += (float(z[i][j]) - float(theta['mu_1'])) *\
-                        (float(z[i][l]) - float(theta['mu_1']))
-        z_norm_time += float(k[i]) * z_norm_time_i
-    rho_1 = (1.0/ (nb_non_diag * theta['sigma_1'] * float(sum(k)))) * \
+        for j in range(z_values.shape[1]):
+            for k in range(z_values.shape[1]):
+                if not k == j:
+                    z_norm_time_i += (float(z_values[i][j]) -
+                                      float(theta['mu'])) *\
+                        (float(z_values[i][k]) - float(theta['mu']))
+        z_norm_time += float(k_state[i]) * z_norm_time_i
+    return (1.0 / (nb_non_diag * theta['sigma'] * float(sum(k_state)))) *\
         z_norm_time
-    #  if rho_1 < RHO_1_MIN:
-    #      rho_1 = RHO_1_MIN
-    #  if rho_1 > RHO_1_MAX:
-    #      rho_1 = RHO_1_MAX
-    return rho_1
 
 
-def logLikelihood(z, k, theta):
+def loglikelihood(z_values, k_state, theta):
     """
     Compute logLikelihood of the pseudo-data
     """
     try:
-        h0_x = h_function(z=z,
-                          m=z.shape[1],
-                          mu=0,
-                          sigma_sq=1,
-                          rho=0)
-        h1_x = h_function(z=z,
-                          m=z.shape[1],
-                          mu=theta['mu_1'],
-                          sigma_sq=theta['sigma_1'],
-                          rho=theta['rho_1'])
-        ll = 0.0
-        for i in range(z.shape[0]):
-            ll += (1.0-float(k[i])) * (math.log(1-theta['pi_1']) +
-                                       math.log(h0_x[i]))
-            ll += float(k[i]) * (math.log(theta['pi_1']) +
-                                 math.log(h1_x[i]))
-        return ll
-    except ValueError as e:
-        print("error: logLikelihood: " + str(e))
-        print(h1_x[i])
-        print(theta)
-        quit(-1)
-    except Exception as e:
-        print("error: logLikelihood: " + str(e))
+        h0_x = h_function(z_values=z_values,
+                          m_sample=z_values.shape[1],
+                          theta={'mu': 0,
+                                 'sigma': 1,
+                                 'rho': 0}
+                          )
+        h1_x = h_function(z_values=z_values,
+                          m_sample=z_values.shape[1],
+                          theta=theta
+                          )
+        logl = 0.0
+        for i in range(z_values.shape[0]):
+            logl += (1.0-float(k_state[i])) * (math.log(1-theta['pi']) +
+                                               math.log(h0_x[i]))
+            logl += float(k_state[i]) * (math.log(theta['pi']) +
+                                         math.log(h1_x[i]))
+        return logl
+    except ValueError as err:
+        print("error: logLikelihood: " + str(err))
         print(h1_x[i])
         print(theta)
         quit(-1)
 
 
-def EM_pseudo_data(z,
+def delta(theta_t0, theta_t1, threshold, logl):
+    """
+    compute the maximal variation between t0 and t1 for the estimated
+    parameters
+    """
+    esp = 0
+    for parameters in theta_t0:
+        if abs(theta_t0[parameters] - theta_t1[parameters]) > threshold:
+            esp += 1
+    if esp == 0 and logl != -np.inf:
+        return False
+    return True
+
+
+def em_pseudo_data(z_values,
                    log,
                    theta,
-                   k,
+                   k_state,
                    threshold=0.001):
     """
     EM optimization of theta for pseudo-data
     """
     theta_t1 = deepcopy(theta)
-    ll = 0.0
-    ll_t1 = -np.inf
-    while abs(ll - ll_t1) > threshold:
-        ll = ll_t1
+    logl = 0.0
+    logl_t1 = -np.inf
+    while delta(theta, theta_t1, threshold, logl_t1):
+        logl = logl_t1
         theta = deepcopy(theta_t1)
-        k = E_step_K(z=z, k=k, theta=theta)
-        theta_t1['pi_1'] = M_step_pi_1(k=k)
-        theta_t1['mu_1'] = M_step_mu_1(z=z, k=k)
-        theta_t1['sigma_1'] = M_step_sigma_1(z=z, k=k, theta=theta_t1)
-        theta_t1['rho_1'] = M_step_rho_1(z=z, k=k, theta=theta_t1)
-        ll_t1 = logLikelihood(z=z, k=k, theta=theta_t1)
-        log['ll'].append(ll_t1)
-        log['pi'].append(theta['pi_1'])
-        log['mu'].append(theta['mu_1'])
-        log['sigma'].append(theta['sigma_1'])
-        log['rho'].append(theta['rho_1'])
-        if ll_t1 - ll < 0.0:
-            print("warning: EM decreassing logLikelihood: " + str(ll_t1 - ll))
+        k_state = e_step_k(z_values=z_values,
+                           k_state=k_state,
+                           theta=theta)
+        theta_t1['pi'] = m_step_pi(k_state=k_state)
+        theta_t1['mu'] = m_step_mu(z_values=z_values,
+                                   k_state=k_state)
+        theta_t1['sigma'] = m_step_sigma(z_values=z_values,
+                                         k_state=k_state,
+                                         theta=theta_t1)
+        theta_t1['rho'] = m_step_rho(z_values=z_values,
+                                     k_state=k_state,
+                                     theta=theta_t1)
+        logl_t1 = loglikelihood(z_values=z_values,
+                                k_state=k_state,
+                                theta=theta_t1)
+        log = add_log(log, theta_t1, logl_t1)
+        if logl_t1 - logl < 0.0:
+            print("warning: EM decreassing logLikelihood: " +
+                  str(logl_t1 - logl))
             print(theta_t1)
-            #  theta_t1 = THETA_INIT
-    return (theta_t1, k, log)
+    return (theta_t1, k_state, log)
+
+
+def pseudo_likelihood(x_score, threshold=0.001):
+    """
+    pseudo likelhood optimization for the copula model parameters
+    """
+    theta = THETA_INIT
+    theta_t1 = deepcopy(theta)
+    logl = 0.0
+    k_state = [0.0] * int(x_score.shape[0])
+    u_values = [0.0] * int(x_score.shape[0])
+    z_values = [0.0] * int(x_score.shape[0])
+    lidr = [0.0] * int(x_score.shape[0])
+    u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
+    log = {'logl': list(),
+           'pi': list(),
+           'mu': list(),
+           'sigma': list(),
+           'rho': list()}
+    logl = 0.0
+    logl_t1 = -np.inf
+    while delta(theta, theta_t1, threshold, logl_t1):
+        logl = logl_t1
+        theta = deepcopy(theta_t1)
+        z_values = compute_z_from_u(u_values=u_values,
+                                    theta=theta)
+        (theta_t1, k, log) = em_pseudo_data(z_values=z_values,
+                                            log=log,
+                                            k_state=k_state,
+                                            theta=theta,
+                                            threshold=threshold)
+        lidr = local_idr(z_values=z_values,
+                         lidr=lidr,
+                         theta=theta_t1)
+        logl_t1 = loglikelihood(z_values=z_values,
+                                k_state=k_state,
+                                theta=theta_t1)
+        log = add_log(log,
+                      theta_t1,
+                      logl_t1)
+        if logl_t1 - logl < 0.0:
+            print("warning: pseudo data decreassing logLikelihood: " +
+                  str(logl_t1 - logl))
+            print(theta)
+        plot_log(log, "log.pdf")
+        plot_classif(x_score,
+                     u_values,
+                     z_values,
+                     lidr,
+                     "classif.pdf")
+    print(theta)
+    return (theta, lidr, k)
+
+
+def add_log(log, theta, logl):
+    """
+    function to append thata and ll value to the logs
+    """
+    log['logl'].append(logl)
+    for parameters in theta:
+        log[parameters].append(theta[parameters])
+    return log
+
 
 def plot_log(log, file_name):
     """
     plot logs into a file
     """
     pylab.subplot(5, 1, 1)
-    pylab.plot(np.linspace(start=0, stop=len(log['ll']), num=len(log['ll'])), log['ll'])
+    pylab.plot(np.linspace(start=0,
+                           stop=len(log['logl']),
+                           num=len(log['logl'])),
+               log['logl'])
     pylab.ylabel('logLikelihood')
     pylab.subplot(5, 1, 2)
-    pylab.plot(np.linspace(start=0, stop=len(log['ll']), num=len(log['ll'])), log['pi'])
-    pylab.ylabel('pi_1')
+    pylab.plot(np.linspace(start=0,
+                           stop=len(log['logl']),
+                           num=len(log['logl'])),
+               log['pi'])
+    pylab.ylabel('pi')
     pylab.subplot(5, 1, 3)
-    pylab.plot(np.linspace(start=0, stop=len(log['ll']), num=len(log['ll'])), log['mu'])
-    pylab.ylabel('mu_1')
+    pylab.plot(np.linspace(start=0,
+                           stop=len(log['logl']),
+                           num=len(log['logl'])),
+               log['mu'])
+    pylab.ylabel('mu')
     pylab.subplot(5, 1, 4)
-    pylab.plot(np.linspace(start=0, stop=len(log['ll']), num=len(log['ll'])), log['sigma'])
-    pylab.ylabel('sigma_1')
+    pylab.plot(np.linspace(start=0,
+                           stop=len(log['logl']),
+                           num=len(log['logl'])),
+               log['sigma'])
+    pylab.ylabel('sigma')
     pylab.subplot(5, 1, 5)
-    pylab.plot(np.linspace(start=0, stop=len(log['ll']), num=len(log['ll'])), log['rho'])
-    pylab.ylabel('rho_1')
+    pylab.plot(np.linspace(start=0,
+                           stop=len(log['logl']),
+                           num=len(log['logl'])),
+               log['rho'])
+    pylab.ylabel('rho')
     pylab.savefig(file_name)
 
-def plot_classif(x, u, z, lidr, file_name):
+
+def plot_classif(x_score, u_values, z_values, lidr, file_name):
     """
     plot logs into a file
     """
     pylab.subplot(4, 1, 1)
-    pylab.hist(x[:, 0], bins=1000, label=str(0))
+    pylab.hist(x_score[:, 0], bins=1000, label=str(0))
     pylab.subplot(4, 1, 2)
-    pylab.hist(z[:, 0], bins=1000, label=str(0))
+    pylab.hist(z_values[:, 0], bins=1000, label=str(0))
     pylab.subplot(4, 1, 3)
-    pylab.scatter(x[:, 1], z[:, 0], c=lidr)
+    pylab.scatter(x_score[:, 1], z_values[:, 0], c=lidr)
     pylab.subplot(4, 1, 4)
-    pylab.scatter(u[:, 1], z[:, 0], c=lidr)
+    pylab.scatter(u_values[:, 1], z_values[:, 0], c=lidr)
     pylab.savefig(file_name)
 
-def pseudo_likelihood(x, threshold=0.001):
-    """
-    pseudo likelhood optimization for the copula model parameters
-    """
-    theta = THETA_INIT
-    k = [0.0] * int(x.shape[0])
-    u = [0.0] * int(x.shape[0])
-    z = [0.0] * int(x.shape[0])
-    lidr = [0.0] * int(x.shape[0])
-    u = compute_empirical_marginal_cdf(compute_rank(x))
-    log = {'ll': list(),
-           'pi': list(),
-           'mu': list(),
-           'sigma': list(),
-           'rho': list()}
-    ll = 0.0
-    ll_t1 = -np.inf
-    try:
-        while abs(ll - ll_t1) > threshold:
-            ll = ll_t1
-            z = compute_z_from_u(u=u, k=k, theta=theta)
-            (theta, k, loglik) = EM_pseudo_data(z=z,
-                                                log=log,
-                                                k=k,
-                                                theta=theta,
-                                                threshold=threshold)
-            lidr = local_idr(z=z, lidr=lidr, theta=theta)
-            ll_t1 = logLikelihood(z=z, k=k, theta=theta)
-            log['ll'].append(ll_t1)
-            log['pi'].append(theta['pi_1'])
-            log['mu'].append(theta['mu_1'])
-            log['sigma'].append(theta['sigma_1'])
-            log['rho'].append(theta['rho_1'])
-            if ll_t1 - ll < 0.0:
-                print("warning: pseudo data decreassing logLikelihood: " + str(ll_t1 - ll))
-                print(theta)
-            plot_log(log, "log_paper.pdf")
-            plot_classif(x, u, z, lidr, "classif_paper.pdf")
-    except Exception as e:
-        plot_log(log, "log_paper.png")
-        plot_classif(x, u, z, lidr, "classif_paper.pdf")
-    plot_classif(x, u, z, lidr, "classif_paper.pdf")
-    return theta
-    #  return (theta, lidr)
 
-theta_test = {'pi_1': 0.5, 'mu_1': 5.0, 'sigma_1': 1.0, 'rho_1': 0.9}
+THETA_TEST = {'pi': 0.2, 'mu': 3.0, 'sigma': 2.0, 'rho': 0.65}
 
-#  print(EM_pseudo_data(sim_m_samples(n=10000,
-#                                     m=5,
-#                                     mu=theta_test['mu_1'],
-#                                     sigma_sq=theta_test['sigma_1'],
-#                                     rho=theta_test['rho_1'],
-#                                     pi=theta_test['pi_1'])["X"],
-#                       k=[0.0] * 10000,
-#                       theta=THETA_INIT,
-#                       threshold=0.001)[0])
-print(pseudo_likelihood(sim_m_samples(n=10000,
-                                      m=2,
-                                      mu=theta_test['mu_1'],
-                                      sigma_sq=theta_test['sigma_1'],
-                                      rho=theta_test['rho_1'],
-                                      pi=theta_test['pi_1'])["X"],
-                        threshold=0.01))
-print(theta_test)
+DATA = sim_m_samples(n_value=10000,
+                     m_sample=2,
+                     theta=THETA_TEST)
+(THETA_RES, LIDR, K) = pseudo_likelihood(DATA["X"], threshold=0.01)
 
-#  x = sim_m_samples(n=10,
-#                                     m=5,
-#                                     mu=theta_test['mu_1'],
-#                                     sigma_sq=theta_test['sigma_1'],
-#                                     rho=theta_test['rho_1'],
-#                                     pi=theta_test['pi_1'])["X"]
-#  print(x)
-#  print(compute_rank(x))
-#  print(compute_empirical_marginal_cdf(compute_rank(x)))
+pylab.plot(DATA['K'], K)
+pylab.ylabel('k')
+pylab.savefig("k_vs_estK.pdf")
+pylab.plot(DATA['K'], LIDR)
+pylab.ylabel('lidf')
+pylab.savefig("k_vs_idr.pdf")
