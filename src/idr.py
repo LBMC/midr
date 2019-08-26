@@ -186,15 +186,15 @@ def compute_z_from_u(u_values, theta):
     compute u_ij from z_ij via the G_j function
     """
     # fixed g function for given theta
-    g_f = lambda x_values: g_function(z_values=x_values, theta=theta)
-    # inverse of g functon for given theta
-    def g_m1(x_values):
-        return inversefunc(g_f,
-                           y_values=x_values,
-                           image=[0, 1],
-                           open_domain=False,
-                           domain=[min([-4.0, theta['mu'] - 4.0]),
-                                   max([4.0, theta['mu'] + 4.0])])
+    g_func = lambda x: g_function(x,
+                                  theta=theta)
+    # compute inverse function of g_func
+    g_m1 = lambda r: inversefunc(g_func,
+                                 y_values=r,
+                                 image=[0, 1],
+                                 open_domain=False,
+                                 domain=[min([-4, theta['mu'] - 4]),
+                                         max([4, theta['mu'] + 4])])
     z_values = np.empty_like(u_values)
     for i in range(u_values.shape[0]):
         for j in range(u_values.shape[1]):
@@ -220,7 +220,7 @@ def h_function(z_values, m_sample, theta):
     return pd.Series(x_values)
 
 
-def e_step_k(z_values, k_state, theta):
+def e_step_k(z_values, theta):
     """
     compute expectation of Ki
     """
@@ -347,13 +347,12 @@ def delta(theta_t0, theta_t1, threshold, logl):
     compute the maximal variation between t0 and t1 for the estimated
     parameters
     """
-    esp = 0
+    if logl == -np.inf:
+        return True
     for parameters in theta_t0:
         if abs(theta_t0[parameters] - theta_t1[parameters]) > threshold:
-            esp += 1
-    if esp == 0 and logl != -np.inf:
-        return False
-    return True
+            return True
+    return False
 
 
 def em_pseudo_data(z_values,
@@ -373,8 +372,7 @@ def em_pseudo_data(z_values,
         del theta_t0
         theta_t0 = deepcopy(theta_t1)
         k_state = e_step_k(z_values=z_values,
-                           k_state=k_state,
-                           theta=theta_t0)
+                           theta=theta_t1)
         theta_t1['pi'] = m_step_pi(k_state=k_state)
         theta_t1['mu'] = m_step_mu(z_values=z_values,
                                    k_state=k_state)
@@ -419,11 +417,11 @@ def pseudo_likelihood(x_score, threshold=0.001):
         theta_t0 = deepcopy(theta_t1)
         z_values = compute_z_from_u(u_values=u_values,
                                     theta=theta_t1)
-        (theta_t1, k, log) = em_pseudo_data(z_values=z_values,
-                                            log=log,
-                                            k_state=k_state,
-                                            theta=theta_t1,
-                                            threshold=threshold)
+        (theta_t1, k_state, log) = em_pseudo_data(z_values=z_values,
+                                                  log=log,
+                                                  k_state=k_state,
+                                                  theta=theta_t1,
+                                                  threshold=threshold)
         lidr = local_idr(z_values=z_values,
                          lidr=lidr,
                          theta=theta_t1)
@@ -444,10 +442,10 @@ def pseudo_likelihood(x_score, threshold=0.001):
                      lidr,
                      "classif.pdf")
     print(theta_t1)
-    return (theta_t1, lidr, k)
+    return (theta_t1, lidr, k_state)
 
 
-THETA_TEST = {'pi': 0.2, 'mu': 3.0, 'sigma': 2.0, 'rho': 0.65}
+THETA_TEST = {'pi': 0.2, 'mu': 3.0, 'sigma': 1.0, 'rho': 0.65}
 
 DATA = sim_m_samples(n_value=10000,
                      m_sample=2,
