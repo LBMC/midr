@@ -30,6 +30,68 @@ THETA_INIT = {'pi': 0.5,
               'rho': 0.5}
 
 
+def add_log(log, theta, logl):
+    """
+    function to append thata and ll value to the logs
+    """
+    log['logl'].append(logl)
+    for parameters in theta:
+        log[parameters].append(theta[parameters])
+    return log
+
+
+def plot_log(log, file_name):
+    """
+    plot logs into a file
+    """
+    pylab.subplot(5, 1, 1)
+    pylab.plot(np.linspace(start=0,
+                           stop=len(log['logl']),
+                           num=len(log['logl'])),
+               log['logl'])
+    pylab.ylabel('logLikelihood')
+    pylab.subplot(5, 1, 2)
+    pylab.plot(np.linspace(start=0,
+                           stop=len(log['logl']),
+                           num=len(log['logl'])),
+               log['pi'])
+    pylab.ylabel('pi')
+    pylab.subplot(5, 1, 3)
+    pylab.plot(np.linspace(start=0,
+                           stop=len(log['logl']),
+                           num=len(log['logl'])),
+               log['mu'])
+    pylab.ylabel('mu')
+    pylab.subplot(5, 1, 4)
+    pylab.plot(np.linspace(start=0,
+                           stop=len(log['logl']),
+                           num=len(log['logl'])),
+               log['sigma'])
+    pylab.ylabel('sigma')
+    pylab.subplot(5, 1, 5)
+    pylab.plot(np.linspace(start=0,
+                           stop=len(log['logl']),
+                           num=len(log['logl'])),
+               log['rho'])
+    pylab.ylabel('rho')
+    pylab.savefig(file_name)
+
+
+def plot_classif(x_score, u_values, z_values, lidr, file_name):
+    """
+    plot logs into a file
+    """
+    pylab.subplot(4, 1, 1)
+    pylab.hist(x_score[:, 0], bins=1000, label=str(0))
+    pylab.subplot(4, 1, 2)
+    pylab.hist(z_values[:, 0], bins=1000, label=str(0))
+    pylab.subplot(4, 1, 3)
+    pylab.scatter(x_score[:, 1], z_values[:, 0], c=lidr)
+    pylab.subplot(4, 1, 4)
+    pylab.scatter(u_values[:, 1], z_values[:, 0], c=lidr)
+    pylab.savefig(file_name)
+
+
 def read_peak(file_name):
     """
     read peak file
@@ -126,12 +188,13 @@ def compute_z_from_u(u_values, theta):
     # fixed g function for given theta
     g_f = lambda x_values: g_function(z_values=x_values, theta=theta)
     # inverse of g functon for given theta
-    g_m1 = lambda x_values: inversefunc(g_f,
-                                        y_values=x_values,
-                                        image=[0, 1],
-                                        open_domain=False,
-                                        domain=[min([-3.0, theta['mu'] - 3.0]),
-                                                max([3.0, theta['mu'] + 3.0])])
+    def g_m1(x_values):
+        return inversefunc(g_f,
+                           y_values=x_values,
+                           image=[0, 1],
+                           open_domain=False,
+                           domain=[min([-4.0, theta['mu'] - 4.0]),
+                                   max([4.0, theta['mu'] + 4.0])])
     z_values = np.empty_like(u_values)
     for i in range(u_values.shape[0]):
         for j in range(u_values.shape[1]):
@@ -301,15 +364,17 @@ def em_pseudo_data(z_values,
     """
     EM optimization of theta for pseudo-data
     """
+    theta_t0 = deepcopy(theta)
     theta_t1 = deepcopy(theta)
-    logl = 0.0
+    logl_t0 = 0.0
     logl_t1 = -np.inf
-    while delta(theta, theta_t1, threshold, logl_t1):
-        logl = logl_t1
-        theta = deepcopy(theta_t1)
+    while delta(theta_t0, theta_t1, threshold, logl_t1):
+        logl_t0 = logl_t1
+        del theta_t0
+        theta_t0 = deepcopy(theta_t1)
         k_state = e_step_k(z_values=z_values,
                            k_state=k_state,
-                           theta=theta)
+                           theta=theta_t0)
         theta_t1['pi'] = m_step_pi(k_state=k_state)
         theta_t1['mu'] = m_step_mu(z_values=z_values,
                                    k_state=k_state)
@@ -323,9 +388,9 @@ def em_pseudo_data(z_values,
                                 k_state=k_state,
                                 theta=theta_t1)
         log = add_log(log, theta_t1, logl_t1)
-        if logl_t1 - logl < 0.0:
+        if logl_t1 - logl_t0 < 0.0:
             print("warning: EM decreassing logLikelihood: " +
-                  str(logl_t1 - logl))
+                  str(logl_t1 - logl_t0))
             print(theta_t1)
     return (theta_t1, k_state, log)
 
@@ -334,30 +399,30 @@ def pseudo_likelihood(x_score, threshold=0.001):
     """
     pseudo likelhood optimization for the copula model parameters
     """
-    theta = THETA_INIT
-    theta_t1 = deepcopy(theta)
-    logl = 0.0
+    theta_t0 = deepcopy(THETA_INIT)
+    theta_t1 = deepcopy(THETA_INIT)
     k_state = [0.0] * int(x_score.shape[0])
     u_values = [0.0] * int(x_score.shape[0])
     z_values = [0.0] * int(x_score.shape[0])
     lidr = [0.0] * int(x_score.shape[0])
-    u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
     log = {'logl': list(),
            'pi': list(),
            'mu': list(),
            'sigma': list(),
            'rho': list()}
-    logl = 0.0
+    logl_t0 = 0.0
     logl_t1 = -np.inf
-    while delta(theta, theta_t1, threshold, logl_t1):
-        logl = logl_t1
-        theta = deepcopy(theta_t1)
+    u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
+    while delta(theta_t0, theta_t1, threshold, logl_t1):
+        logl_t0 = logl_t1
+        del theta_t0
+        theta_t0 = deepcopy(theta_t1)
         z_values = compute_z_from_u(u_values=u_values,
-                                    theta=theta)
+                                    theta=theta_t1)
         (theta_t1, k, log) = em_pseudo_data(z_values=z_values,
                                             log=log,
                                             k_state=k_state,
-                                            theta=theta,
+                                            theta=theta_t1,
                                             threshold=threshold)
         lidr = local_idr(z_values=z_values,
                          lidr=lidr,
@@ -368,80 +433,18 @@ def pseudo_likelihood(x_score, threshold=0.001):
         log = add_log(log,
                       theta_t1,
                       logl_t1)
-        if logl_t1 - logl < 0.0:
+        if logl_t1 - logl_t0 < 0.0:
             print("warning: pseudo data decreassing logLikelihood: " +
-                  str(logl_t1 - logl))
-            print(theta)
+                  str(logl_t1 - logl_t0))
+            print(theta_t1)
         plot_log(log, "log.pdf")
         plot_classif(x_score,
                      u_values,
                      z_values,
                      lidr,
                      "classif.pdf")
-    print(theta)
-    return (theta, lidr, k)
-
-
-def add_log(log, theta, logl):
-    """
-    function to append thata and ll value to the logs
-    """
-    log['logl'].append(logl)
-    for parameters in theta:
-        log[parameters].append(theta[parameters])
-    return log
-
-
-def plot_log(log, file_name):
-    """
-    plot logs into a file
-    """
-    pylab.subplot(5, 1, 1)
-    pylab.plot(np.linspace(start=0,
-                           stop=len(log['logl']),
-                           num=len(log['logl'])),
-               log['logl'])
-    pylab.ylabel('logLikelihood')
-    pylab.subplot(5, 1, 2)
-    pylab.plot(np.linspace(start=0,
-                           stop=len(log['logl']),
-                           num=len(log['logl'])),
-               log['pi'])
-    pylab.ylabel('pi')
-    pylab.subplot(5, 1, 3)
-    pylab.plot(np.linspace(start=0,
-                           stop=len(log['logl']),
-                           num=len(log['logl'])),
-               log['mu'])
-    pylab.ylabel('mu')
-    pylab.subplot(5, 1, 4)
-    pylab.plot(np.linspace(start=0,
-                           stop=len(log['logl']),
-                           num=len(log['logl'])),
-               log['sigma'])
-    pylab.ylabel('sigma')
-    pylab.subplot(5, 1, 5)
-    pylab.plot(np.linspace(start=0,
-                           stop=len(log['logl']),
-                           num=len(log['logl'])),
-               log['rho'])
-    pylab.ylabel('rho')
-    pylab.savefig(file_name)
-
-
-def plot_classif(x_score, u_values, z_values, lidr, file_name):
-    """
-    plot logs into a file
-    """
-    pylab.subplot(4, 1, 1)
-    pylab.hist(x_score[:, 0], bins=1000, label=str(0))
-    pylab.subplot(4, 1, 2)
-    pylab.hist(z_values[:, 0], bins=1000, label=str(0))
-    pylab.subplot(4, 1, 3)
-    pylab.scatter(x_score[:, 1], z_values[:, 0], c=lidr)
-    pylab.subplot(4, 1, 4)
-    pylab.scatter(u_values[:, 1], z_values[:, 0], c=lidr)
-    pylab.savefig(file_name)
+    print(theta_t1)
+    return (theta_t1, lidr, k)
 
 
 THETA_TEST = {'pi': 0.2, 'mu': 3.0, 'sigma': 2.0, 'rho': 0.65}
@@ -449,6 +452,15 @@ THETA_TEST = {'pi': 0.2, 'mu': 3.0, 'sigma': 2.0, 'rho': 0.65}
 DATA = sim_m_samples(n_value=10000,
                      m_sample=2,
                      theta=THETA_TEST)
+#  em_pseudo_data(z_values=DATA["X"],
+#                 log={'logl': list(),
+#                      'pi': list(),
+#                      'mu': list(),
+#                      'sigma': list(),
+#                      'rho': list()},
+#                 theta=THETA_INIT,
+#                 k_state=[0.0] * DATA['X'].shape[0],
+#                 threshold=0.01)
 (THETA_RES, LIDR, K) = pseudo_likelihood(DATA["X"], threshold=0.01)
 
 pylab.plot(DATA['K'], K)
