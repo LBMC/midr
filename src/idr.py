@@ -72,33 +72,51 @@ def plot_classif(x_score, u_values, z_values, lidr, file_name):
     plt.scatter(u_values[:, 1], z_values[:, 0], c=lidr)
     plt.savefig(file_name)
 
-def read_coords_narrowpeak(line, coords):
+class NarrowPeaks:
     """
-    read coords from narrowpeak
+    Class to handle narrowpeak file
     """
-    line = line.split()
-    coords.append({'chr': line[0],
-                   'start': line[1],
-                   'stop': line[2],
-                   'strand': line[5]})
 
-def read_peaks(file_names, file_merge):
-    """
-    read peak file
-    """
-    coords = pd.DataFrame(data={'chr': list(),
-                                'start': list(),
-                                'stop': list(),
-                                'strand': list()})
-    with open(file_merge, 'r') as fmerge:
-        for line in fmerge:
-            read_coords_narrowpeak(line, *coords)
-    for file_name in file_names:
-        with open(file_name, 'r') as ffile:
-            for line in ffile:
+    colnum_names = ['chr', 'start', 'stop', 'name', 'score', 'strand',
+                   'signalValue', 'pValue', 'qValue', 'peak']
+
+    def __init__(self, score='signalValue'):
+        """
+        Create narrowpeak DataFrame
+        """
+        self.files = {'coords': pd.DataFrame(columns=colnum_names)}
+        if score in colnum_names[6:9]:
+            self.score = score
+        else:
+            print("error: " + str(score) +
+                  " must be a narrowpeak score column")
+            quit(-1)
+
+    def read_line(self, line, file_name):
+        """
+        read coords from narrowpeak
+        """
+        line = line.split()
+        file_line = dict()
+        i = 0
+        for col in colnum_names:
+            file_line[col] = line[i]
+            i += 1
+        self.files[file_name].append(file_line)
 
 
-    return file_name
+    def read_peaks(self, file_names, file_merge):
+        """
+        read peak file
+        """
+        with open(file_merge, 'r') as fmerge:
+            for line in fmerge:
+                self.read_line(line, 'coords')
+        for file_name in file_names:
+            with open(file_name, 'r') as ffile:
+                for line in ffile:
+                    self.read_line(line, file_name)
+
 
 
 def cov_matrix(m_sample, theta):
@@ -468,7 +486,11 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 
 
 THETA_TEST_0 = {'pi': 0.2, 'mu': 2.0, 'sigma': 1.0, 'rho': 0.0}
-THETA_TEST_1 = {'pi': 0.2, 'mu': 4.0, 'sigma': 1.0, 'rho': 0.75}
+THETA_TEST_1 = {'pi': 0.2, 'mu': 4.0, 'sigma': 2.0, 'rho': 0.75}
+THETA_TEST = {'pi': 0.2,
+              'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
+              'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
+              'rho': 0.75}
 
 DATA = sim_m_samples(n_value=10000,
                      m_sample=2,
@@ -476,14 +498,10 @@ DATA = sim_m_samples(n_value=10000,
                      theta_1=THETA_TEST_1)
 (THETA_RES, LIDR, K) = pseudo_likelihood(DATA["X"],
                                          threshold=0.01,
-                                         log_name=str(THETA_TEST_0) +
-                                         str(THETA_TEST_1))
-print(THETA_TEST_0)
-print(THETA_TEST_1)
+                                         log_name=str(THETA_TEST))
+print(THETA_TEST)
 
+plt.subplot(1, 1, 1)
 plt.plot(DATA['K'], K)
 plt.ylabel('k')
-plt.savefig("k_vs_estK.pdf")
-plt.plot(DATA['K'], LIDR)
-plt.ylabel('lidf')
-plt.savefig("k_vs_idr.pdf")
+plt.savefig("k_vs_estK_" + str(THETA_TEST) + ".pdf")
