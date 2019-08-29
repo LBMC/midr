@@ -6,16 +6,15 @@ Package to compute IDR from n replicates
 
 import math
 from copy import deepcopy
+from os import path
 from scipy.stats import rankdata
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
-from scipy.optimize import brentq
 import numpy as np
 import pandas as pd
 from pynverse import inversefunc
 import matplotlib.pyplot as plt
-import pybedtools
 
 THETA_INIT = {'pi': 0.5,
               'mu': 0.0,
@@ -78,19 +77,31 @@ class NarrowPeaks:
     """
 
     colnum_names = ['chr', 'start', 'stop', 'name', 'score', 'strand',
-                   'signalValue', 'pValue', 'qValue', 'peak']
+                    'signalValue', 'pValue', 'qValue', 'peak']
 
-    def __init__(self, score='signalValue'):
+    def __init__(self, file_merge, file_names, score='signalValue'):
         """
         Create narrowpeak DataFrame
         """
-        self.files = {'coords': pd.DataFrame(columns=colnum_names)}
-        if score in colnum_names[6:9]:
+        self.files = {'coords': pd.DataFrame(columns=self.colnum_names)}
+        self.files_merged = dict()
+        if score in self.colnum_names[6:9]:
             self.score = score
         else:
             print("error: " + str(score) +
                   " must be a narrowpeak score column")
             quit(-1)
+        self.file_merge, self.file_merge_path = \
+            path.normpath(str(file_merge)).path.split(path.sep)
+        self.file_names = dict()
+        for full_path in file_names:
+            file_name, file_path = \
+                path.normpath(str(full_path)).path.split(path.sep)
+            self.file_names[file_name] = file_path
+        self.read_peaks()
+        self.sort_peaks()
+        self.merge_peaks()
+        self.idr()
 
     def read_line(self, line, file_name):
         """
@@ -99,24 +110,103 @@ class NarrowPeaks:
         line = line.split()
         file_line = dict()
         i = 0
-        for col in colnum_names:
+        for col in self.colnum_names:
             file_line[col] = line[i]
             i += 1
         self.files[file_name].append(file_line)
 
-
-    def read_peaks(self, file_names, file_merge):
+    def read_peaks(self):
         """
         read peak file
         """
+        file_merge = str(self.file_merge_path) + str(self.file_merge)
         with open(file_merge, 'r') as fmerge:
             for line in fmerge:
                 self.read_line(line, 'coords')
-        for file_name in file_names:
-            with open(file_name, 'r') as ffile:
+        for file_name in self.file_names:
+            file_path = str(self.file_names[file_name]) + str(file_name)
+            self.files[file_name] = pd.DataFrame(columns=self.colnum_names)
+            with open(file_path, 'r') as ffile:
                 for line in ffile:
                     self.read_line(line, file_name)
 
+    def sort_peaks(self):
+        """
+        sort peaks by chr, start, stop, strand and peaks
+        """
+        for file_name in self.files:
+            self.files[file_name] = self.files[file_name].\
+                sort_values(by=np.array(self.colnum_names)[[0, 1, 2, 3, 5, 9]])
+
+    def is_match(self, index_ref, index_file, file_name):
+        """
+        helper function for merge peaks
+        return True if the peak is within the merged peak file
+        """
+        ref_strand = self.files['coords']['strand'][index_ref]
+        peak = self.files[file_name]['peak'][index_file]
+        if peak != ref_strand:
+            return False
+        start = self.files['coords']['start'][index_ref]
+        stop = self.files['coords']['stop'][index_ref]
+        peak_strand = self.files[file_name]['strand'][index_file]
+        if peak < start or peak > stop:
+            return False
+        return True
+
+    def merge_line(self, index_ref, index_file, file_name):
+        """
+        merge current file line with merged peak file
+        """
+        line = self.files['coords'][index_ref]
+        for col in np.array(self.colnum_names)[[3, 4, 6, 7, 8, 9]]:
+            line[col] = self.files[file_name][index_file][col]
+        return line
+
+    def merge_peaks(self):
+        """
+        merge peaks according to the merged files
+        """
+        for index_ref, row_ref in self.files['coords'].iterrows():
+            for file_name in self.file_names:
+                merged_name = str(file_name) + "_merged"
+                self.files_merged[merged_name] = \
+                    pd.DataFrame(columns=self.colnum_names)
+                for index_file, row_file in self.files[file_name].iterrows():
+                    if self.is_match(index_ref, index_file, file_name):
+                        self.files_merged[merged_name].append(
+                            self.merge_line(index_ref, index_file, file_name)
+                        )
+
+    def idr(self):
+        """
+        compute IDR for given score
+        """
+        data = np.array()
+        for file_name in self.files_merged:
+            if data.shape[1] == 0:
+                data = np.array(self.files_merged[file_name][self.score])
+            else:
+                data[:, :-1] = np.array(self.files_merged[file_name][[self.score]])
+        theta, lidr, k = pseudo_likelihood(x_score=data,
+                                             threshold=0.01,
+                                             log_name=self.file_merge)
+        print(theta)
+        i = 0
+        for file_name in self.files_merged:
+            self.files_merged[file_name]['idr'] = lidr[:, i]
+            i += 1
+
+    def write_file(self):
+        """
+        write output
+        """
+        for file_name in self.files_merged:
+            output_name = str(self.files_merged[file_name]) + \
+                str( path.sep ) + "idr" + str(file_name)
+            self.files_merged[file_name].to_csv(output_name,
+                                                sep='\t',
+                                                encoding='utf-8')
 
 
 def cov_matrix(m_sample, theta):
@@ -485,8 +575,8 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
     return (theta_t1, lidr, k_state)
 
 
-THETA_TEST_0 = {'pi': 0.2, 'mu': 2.0, 'sigma': 1.0, 'rho': 0.0}
-THETA_TEST_1 = {'pi': 0.2, 'mu': 4.0, 'sigma': 2.0, 'rho': 0.75}
+THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
+THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
 THETA_TEST = {'pi': 0.2,
               'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
               'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
@@ -502,6 +592,6 @@ DATA = sim_m_samples(n_value=10000,
 print(THETA_TEST)
 
 plt.subplot(1, 1, 1)
-plt.plot(DATA['K'], K)
+plt.scatter(DATA['K'], K, c=LIDR)
 plt.ylabel('k')
 plt.savefig("k_vs_estK_" + str(THETA_TEST) + ".pdf")
