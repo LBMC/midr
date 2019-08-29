@@ -1,12 +1,23 @@
 #!/usr/bin/python3
 
-"""
-Package to compute IDR from n replicates
+"""Compute the Irroproductible Discovery Rate (IDR) from NarrowPeaks files
+
+Implementation of the IDR methods for two or more replicates.
+
+LI, Qunhua, BROWN, James B., HUANG, Haiyan, et al. Measuring reproducibility
+of high-throughput experiments. The annals of applied statistics, 2011,
+vol. 5, no 3, p. 1752-1779.
+
+Given a list of peak calls in NarrowPeaks format and the corresponding peak
+call for the merged replicate. This tools compute and append a IDR column to
+NarrowPeaks files.
 """
 
 import math
+import sys
 from copy import deepcopy
 from pathlib import PurePath
+import argparse
 from scipy.stats import rankdata
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
@@ -20,6 +31,42 @@ THETA_INIT = {'pi': 0.5,
               'mu': 0.0,
               'sigma': 1.0,
               'rho': 0.9}
+
+class CustomFormatter(argparse.RawDescriptionHelpFormatter,
+                      argparse.ArgumentDefaultsHelpFormatter):
+    """
+    helper class to make ArgumentParser
+    """
+
+
+def parse_args(args=sys.argv[1:]):
+    """Parse arguments."""
+    parser = argparse.ArgumentParser(
+        description=sys.modules[__name__].__doc__,
+        formatter_class=CustomFormatter)
+
+    arg = parser.add_argument_group("IDR settings")
+    arg.add_argument("--merged", "-m", metavar="FILE",
+                     dest='merged',
+                     required=True,
+                     default=argparse.SUPPRESS,
+                     type=str,
+                     help="file of the merged NarrowPeaks")
+    arg.add_argument("--files", "-f", metavar="FILES",
+                     dest='files',
+                     required=True,
+                     default=argparse.SUPPRESS,
+                     type=str,
+                     nargs='+',
+                     help="list of NarrowPeaks files")
+    arg.add_argument("--score", "-score", metavar="SCORE_COLUMN",
+                     dest='score',
+                     required=False,
+                     default='signalValue',
+                     type=str,
+                     help="NarrowPeaks score column to compute the IDR on, \
+                     one of 'score', 'signalValue', 'pValue' or 'qValue'")
+    return parser.parse_args(args)
 
 
 def add_log(log, theta, logl, pseudo):
@@ -76,8 +123,10 @@ class NarrowPeaks:
     Class to handle narrowpeak file
     """
 
-    colnum_names = ['chr', 'start', 'stop', 'name', 'score', 'strand',
+    column_names = ['chr', 'start', 'stop', 'name', 'score', 'strand',
                     'signalValue', 'pValue', 'qValue', 'peak']
+    score_columns = ['score', 'signalValue', 'pValue', 'qValue']
+    sort_columns = ['chr', 'start', 'stop', 'strand', 'peak']
 
     def __init__(self, file_merge, file_names, score='signalValue'):
         """
@@ -85,7 +134,7 @@ class NarrowPeaks:
         """
         self.files = dict()
         self.files_merged = dict()
-        if score in self.colnum_names[6:9]:
+        if score in self.column_names[6:9]:
             self.score = score
         else:
             print("error: " + str(score) +
@@ -107,12 +156,13 @@ class NarrowPeaks:
         """
         read peak file
         """
+        print("loading narrowpeak files...", end='\r')
         file_path = PurePath(self.file_merge_path).joinpath(self.file_merge)
         self.files['coords'] = pd.read_csv(
             file_path,
             sep='\t',
             header=None,
-            names=self.colnum_names
+            names=self.column_names
         )
         for file_name in self.file_names:
             file_path = PurePath(self.file_names[file_name]).joinpath(file_name)
@@ -120,16 +170,21 @@ class NarrowPeaks:
                 file_path,
                 sep='\t',
                 header=None,
-                names=self.colnum_names
+                names=self.column_names
             )
+        print("loading narrowpeak files done.")
 
     def sort_peaks(self):
         """
         sort peaks by chr, start, stop, strand and peaks
         """
+        print("sorting narrowPeak files...", end='\r')
+        sort_key = self.sort_columns
         for file_name in self.files:
-            self.files[file_name] = self.files[file_name].\
-                sort_values(by=np.array(self.colnum_names)[[0, 1, 2, 3, 5, 9]])
+            print("sorting "+ file_name + " files...", end='\r')
+            self.files[file_name] = self.files[file_name]\
+                .sort_values(by=sort_key)
+        print("sorting narrowPeak files done.")
 
     def is_match(self, index_ref, index_file, file_name):
         """
@@ -137,12 +192,13 @@ class NarrowPeaks:
         return True if the peak is within the merged peak file
         """
         ref_strand = self.files['coords']['strand'][index_ref]
-        peak = self.files[file_name]['peak'][index_file]
-        if peak != ref_strand:
+        peak_strand = self.files[file_name]['strand'][index_file]
+        if peak_strand != ref_strand:
             return False
+        peak = self.files[file_name]['peak'][index_file] + \
+            self.files[file_name]['start'][index_file]
         start = self.files['coords']['start'][index_ref]
         stop = self.files['coords']['stop'][index_ref]
-        peak_strand = self.files[file_name]['strand'][index_file]
         if peak < start or peak > stop:
             return False
         return True
@@ -152,35 +208,53 @@ class NarrowPeaks:
         merge current file line with merged peak file
         """
         line = self.files['coords'][index_ref]
-        for col in np.array(self.colnum_names)[[3, 4, 6, 7, 8, 9]]:
+        for col in self.score_columns:
             line[col] = self.files[file_name][index_file][col]
         return line
+
+    def create_empty_merged(self, file_name):
+        """
+        helper function for merge_peaks
+        """
+        self.files_merged[file_name] = self.files['coords'].copy()
+        self.files_merged[file_name].loc[:, self.score_columns] = -1
 
     def merge_peaks(self):
         """
         merge peaks according to the merged files
         """
-        for index_ref, row_ref in self.files['coords'].iterrows():
-            for file_name in self.file_names:
-                merged_name = str(file_name) + "_merged"
-                self.files_merged[merged_name] = \
-                    pd.DataFrame(columns=self.colnum_names)
-                for index_file, row_file in self.files[file_name].iterrows():
-                    if self.is_match(index_ref, index_file, file_name):
-                        self.files_merged[merged_name].append(
-                            self.merge_line(index_ref, index_file, file_name)
-                        )
+        print("building consensus from merged file...", end='\r')
+        for file_name in self.file_names:
+            print("building consensus from merged file for " +
+                  file_name, end='\r')
+            self.create_empty_merged(file_name=file_name)
+            merged = self.files_merged[file_name]
+            tomerge = self.files[file_name]
+            for i in tomerge.index:
+                peak_pos = tomerge.loc[i, 'start'] + tomerge.loc[i, 'peak']
+                sub_merged = merged[
+                    (merged['start'] <= peak_pos) &
+                    (merged['stop'] >= peak_pos)
+                ]
+                scores = tomerge.loc[i, self.score_columns]
+                for j in sub_merged.index:
+                    sub_merged.loc[j, self.score_columns].update(scores)
+            print(tomerge)
+            print(merged)
+        print("building consensus from merged file done.")
 
     def idr(self):
         """
         compute IDR for given score
         """
-        data = np.array()
+        data = np.zeros(shape=(len(self.files['coords'].index),
+                               len(self.files_merged)))
+        print("computing idr...", end='\r')
         for file_name in self.files_merged:
-            if data.shape[1] == 0:
-                data = np.array(self.files_merged[file_name][self.score])
-            else:
-                data[:, :-1] = np.array(self.files_merged[file_name][[self.score]])
+            score = np.array(self.files_merged[file_name][self.score])
+            score.shape = (len(score), 1)
+            data[:, :-1] = score.astype(float)
+        print(data)
         theta, lidr, k = pseudo_likelihood(x_score=data,
                                            threshold=0.01,
                                            log_name=self.file_merge)
@@ -189,17 +263,22 @@ class NarrowPeaks:
         for file_name in self.files_merged:
             self.files_merged[file_name]['idr'] = lidr[:, i]
             i += 1
+        print("computing idr done.")
 
     def write_file(self):
         """
         write output
         """
+        print("writting output...", end='\r')
         for file_name in self.files_merged:
+            print("writting output for " + file_name, end='\r')
             output_name = PurePath(self.files_merged[file_name])\
                 .joinpath("idr_" + str(file_name))
             self.files_merged[file_name].to_csv(output_name,
                                                 sep='\t',
                                                 encoding='utf-8')
+        print("writting output done.")
+
 
 
 def cov_matrix(m_sample, theta):
@@ -297,26 +376,6 @@ def compute_z_from_u(u_values, theta):
                                  domain=[min([-4, theta['mu'] - 4]),
                                          max([4, theta['mu'] + 4])],
                                  accuracy=0)
-    #  def g_m1(u):
-    #      g_func = lambda x: g_function(x, theta=theta) - u
-    #      if u == 0.0:
-    #          u += np.finfo(float).eps * 4
-    #      if u == 1.0:
-    #          u -= np.finfo(float).eps * 4
-    #      try:
-    #          return brentq(f=g_func,
-    #                        a=min([-4, theta['mu'] - 4]),
-    #                        b=max([4, theta['mu'] + 4]),
-    #                        maxiter=1000,
-    #                        xtol=np.finfo(float).eps * 4,
-    #                        rtol=np.finfo(float).eps * 4)
-    #      except ValueError as err:
-    #          print("error: compute_z_from_u: " + str(err))
-    #          print(theta)
-    #          print({'u': u,
-    #                 'f(a)': g_func(min([-4, theta['mu'] - 4]))-u,
-    #                 'f(b)': g_func(max([4, theta['mu'] + 4]))-u})
-    #          quit(-1)
     z_values = np.empty_like(u_values)
     for i in range(u_values.shape[0]):
         for j in range(u_values.shape[1]):
@@ -534,11 +593,9 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
            'sigma': list(),
            'rho': list(),
            'pseudo_data': list()}
-    logl_t0 = 0.0
     logl_t1 = -np.inf
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
     while delta(theta_t0, theta_t1, threshold, logl_t1):
-        logl_t0 = logl_t1
         del theta_t0
         theta_t0 = deepcopy(theta_t1)
         z_values = compute_z_from_u(u_values=u_values,
@@ -589,6 +646,11 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 #  plt.ylabel('k')
 #  plt.savefig("k_vs_estK_" + str(THETA_TEST) + ".pdf")
 
-test = NarrowPeaks(file_merge="data/test/c1_merge.narrowPeak",
-                   file_names=["data/test/c1_r1.narrowPeak",
-                               "data/test/c1_r2.narrowPeak"])
+#  test = NarrowPeaks(file_merge="data/test/c1_merge.narrowPeak",
+#                     file_names=["data/test/c1_r1.narrowPeak",
+#                                 "data/test/c1_r2.narrowPeak"])
+
+OPTIONS = parse_args()
+NarrowPeaks(file_merge=OPTIONS.merged,
+            file_names=OPTIONS.files,
+            score=OPTIONS.score)
