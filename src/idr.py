@@ -218,6 +218,7 @@ class NarrowPeaks:
         """
         self.files_merged[file_name] = self.files['coords'].copy()
         self.files_merged[file_name].loc[:, self.score_columns] = -1
+        self.files_merged[file_name].drop_duplicates()
 
     def merge_peaks(self):
         """
@@ -229,16 +230,18 @@ class NarrowPeaks:
                   file_name, end='\r')
             self.create_empty_merged(file_name=file_name)
             merged = self.files_merged[file_name]
+            score_loc = [merged.columns.get_loc(c) for c in self.score_columns]
             tomerge = self.files[file_name]
-            for i in tomerge.index:
-                peak_pos = tomerge.loc[i, 'start'] + tomerge.loc[i, 'peak']
-                sub_merged = merged[
-                    (merged['start'] <= peak_pos) &
-                    (merged['stop'] >= peak_pos)
+            for index_merged, row_merged in merged.iterrows():
+                start = row_merged['start']
+                stop = row_merged['stop']
+                sub_merged = tomerge.loc[
+                    (tomerge['start'] + tomerge['peak'] >= start) &
+                    (tomerge['start'] + tomerge['peak'] <= stop),
+                    self.score_columns
                 ]
-                scores = tomerge.loc[i, self.score_columns]
-                for j in sub_merged.index:
-                    sub_merged.loc[j, self.score_columns].update(scores)
+                if sub_merged.shape[0] > 0:
+                    merged.iloc[index_merged, score_loc] = sub_merged.iloc[0]
             print(tomerge)
             print(merged)
         print("building consensus from merged file done.")
@@ -250,10 +253,12 @@ class NarrowPeaks:
         data = np.zeros(shape=(len(self.files['coords'].index),
                                len(self.files_merged)))
         print("computing idr...", end='\r')
+        i = 0
         for file_name in self.files_merged:
             score = np.array(self.files_merged[file_name][self.score])
             score.shape = (len(score), 1)
-            data[:, :-1] = score.astype(float)
+            data[:, i] = score.astype(float)
+            i += 1
         print(data)
         theta, lidr, k = pseudo_likelihood(x_score=data,
                                            threshold=0.01,
