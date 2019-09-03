@@ -283,9 +283,9 @@ class NarrowPeaks:
             data[:, i] = score.astype(float)
             i += 1
         print(data)
-        theta, lidr, k = pseudo_likelihood(x_score=data,
-                                           threshold=threshold,
-                                           log_name=self.file_merge)
+        theta, lidr = pseudo_likelihood(x_score=data,
+                                        threshold=threshold,
+                                        log_name=self.file_merge)
         print(theta)
         i = 0
         for file_name in self.files_merged:
@@ -408,7 +408,6 @@ def compute_z_from_u(u_values, theta):
     for i in range(u_values.shape[0]):
         for j in range(u_values.shape[1]):
             z_values[i][j] = g_m1(u_values[i][j])
-    print(theta)
     return z_values
 
 
@@ -649,8 +648,7 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
                      z_values,
                      lidr,
                      "classif_" + log_name + ".pdf")
-    print(theta_t1)
-    return (theta_t1, lidr, k_state)
+    return (theta_t1, lidr)
 
 
 #  THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
@@ -664,7 +662,7 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 #                       m_sample=2,
 #                       theta_0=THETA_TEST_0,
 #                       theta_1=THETA_TEST_1)
-#  (THETA_RES, LIDR, K) = pseudo_likelihood(DATA["X"],
+#  (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
 #                                           threshold=0.01,
 #                                           log_name=str(THETA_TEST))
 #  print(THETA_TEST)
