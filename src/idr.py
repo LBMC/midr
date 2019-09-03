@@ -59,13 +59,19 @@ def parse_args(args=sys.argv[1:]):
                      type=str,
                      nargs='+',
                      help="list of NarrowPeaks files")
-    arg.add_argument("--score", "-score", metavar="SCORE_COLUMN",
+    arg.add_argument("--score", "-s", metavar="SCORE_COLUMN",
                      dest='score',
                      required=False,
                      default='signalValue',
                      type=str,
                      help="NarrowPeaks score column to compute the IDR on, \
                      one of 'score', 'signalValue', 'pValue' or 'qValue'")
+    arg.add_argument("--threshold", "-t", metavar="THRESHOLD",
+                     dest='threshold',
+                     required=False,
+                     default=0.01,
+                     type=float,
+                     help="Threshold value for the precision of the estimator")
     return parser.parse_args(args)
 
 
@@ -128,7 +134,8 @@ class NarrowPeaks:
     score_columns = ['score', 'signalValue', 'pValue', 'qValue']
     sort_columns = ['chr', 'start', 'stop', 'strand', 'peak']
 
-    def __init__(self, file_merge, file_names, score='signalValue'):
+    def __init__(self, file_merge, file_names, score='signalValue',
+                 threshold=0.01):
         """
         Create narrowpeak DataFrame
         """
@@ -150,7 +157,8 @@ class NarrowPeaks:
         self.read_peaks()
         self.sort_peaks()
         self.merge_peaks()
-        self.idr()
+        self.idr(threshold=threshold)
+        self.write_file()
 
     def read_peaks(self):
         """
@@ -225,6 +233,7 @@ class NarrowPeaks:
         merge peaks according to the merged files
         """
         print("building consensus from merged file...", end='\r')
+        rows_to_drop = list()
         for file_name in self.file_names:
             print("building consensus from merged file for " +
                   file_name, end='\r')
@@ -242,11 +251,14 @@ class NarrowPeaks:
                 ]
                 if sub_merged.shape[0] > 0:
                     merged.iloc[index_merged, score_loc] = sub_merged.iloc[0]
-            print(tomerge)
-            print(merged)
+                else:
+                    rows_to_drop.append(index_merged)
+        rows_to_drop = list(set(rows_to_drop))
+        for file_name in self.file_names:
+            self.files_merged[file_name].drop(index=rows_to_drop)
         print("building consensus from merged file done.")
 
-    def idr(self):
+    def idr(self, threshold):
         """
         compute IDR for given score
         """
@@ -256,17 +268,16 @@ class NarrowPeaks:
         i = 0
         for file_name in self.files_merged:
             score = np.array(self.files_merged[file_name][self.score])
-            score.shape = (len(score), 1)
             data[:, i] = score.astype(float)
             i += 1
         print(data)
         theta, lidr, k = pseudo_likelihood(x_score=data,
-                                           threshold=0.01,
+                                           threshold=threshold,
                                            log_name=self.file_merge)
         print(theta)
         i = 0
         for file_name in self.files_merged:
-            self.files_merged[file_name]['idr'] = lidr[:, i]
+            self.files_merged[file_name]['idr'] = lidr
             i += 1
         print("computing idr done.")
 
@@ -274,15 +285,15 @@ class NarrowPeaks:
         """
         write output
         """
-        print("writting output...", end='\r')
+        print("writing output...", end='\r')
         for file_name in self.files_merged:
-            print("writting output for " + file_name, end='\r')
+            print("writing output for " + file_name, end='\r')
             output_name = PurePath(self.files_merged[file_name])\
                 .joinpath("idr_" + str(file_name))
             self.files_merged[file_name].to_csv(output_name,
                                                 sep='\t',
                                                 encoding='utf-8')
-        print("writting output done.")
+        print("writing output done.")
 
 
 
@@ -637,7 +648,7 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 #                'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
 #                'rho': 0.75}
 #
-#  DATA = sim_m_samples(n_value=10000,
+#  DATA = sim_m_samples(n_value=1000,
 #                       m_sample=2,
 #                       theta_0=THETA_TEST_0,
 #                       theta_1=THETA_TEST_1)
