@@ -15,6 +15,7 @@ NarrowPeaks files.
 
 import math
 import sys
+from os import path, makedirs
 from copy import deepcopy
 from pathlib import PurePath
 import argparse
@@ -160,7 +161,9 @@ class NarrowPeaks:
         for full_path in file_names:
             file_path = PurePath(full_path)
             self.file_names[file_path.name] = file_path.parent
-        self.output = PurePath(output).parent
+        self.output = PurePath(output)
+        if not path.isdir(self.output):
+            makedirs(self.output)
         self.read_peaks()
         self.sort_peaks()
         self.merge_peaks()
@@ -282,11 +285,10 @@ class NarrowPeaks:
             score = np.array(self.files_merged[file_name][self.score])
             data[:, i] = score.astype(float)
             i += 1
-        print(data)
         theta, lidr = pseudo_likelihood(x_score=data,
                                         threshold=threshold,
-                                        log_name=self.file_merge)
-        print(theta)
+                                        log_name=PurePath(self.output)\
+                                        .joinpath(self.file_merge))
         i = 0
         for file_name in self.files_merged:
             self.files_merged[file_name]['idr'] = lidr
@@ -302,11 +304,11 @@ class NarrowPeaks:
             print("writing output for " + file_name, end='\r')
             output_name = PurePath(self.output)\
                 .joinpath("idr_" + str(file_name))
+            print(output_name)
             self.files_merged[file_name].to_csv(output_name,
                                                 sep='\t',
                                                 encoding='utf-8')
         print("writing output done.")
-
 
 
 def cov_matrix(m_sample, theta):
@@ -642,12 +644,12 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
                       theta=theta_t1,
                       logl=logl_t1,
                       pseudo=True)
-        plot_log(log, "log_" + log_name + ".pdf")
+        plot_log(log, str(log_name) + "_log.pdf")
         plot_classif(x_score,
                      u_values,
                      z_values,
                      lidr,
-                     "classif_" + log_name + ".pdf")
+                     str(log_name) + "_classif.pdf")
     return (theta_t1, lidr)
 
 
