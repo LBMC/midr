@@ -19,13 +19,13 @@ from os import path, makedirs
 from copy import deepcopy
 from pathlib import PurePath
 import argparse
+import logging
 from scipy.stats import rankdata
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
 import numpy as np
 import pandas as pd
-import logging
 from pynverse import inversefunc
 import matplotlib.pyplot as plt
 
@@ -99,8 +99,8 @@ def parse_args(args=sys.argv[1:]):
                      default=False,
                      help="enable debugging")
     arg.add_argument("--verbose", action="store_true",
-               default=False,
-               help="log to console")
+                     default=False,
+                     help="log to console")
     return parser.parse_args(args)
 
 
@@ -152,6 +152,7 @@ def plot_classif(x_score, u_values, z_values, lidr, file_name):
     plt.subplot(4, 1, 4)
     plt.scatter(u_values[:, 1], z_values[:, 0], c=lidr)
     plt.savefig(file_name)
+
 
 class NarrowPeaks:
     """
@@ -207,7 +208,8 @@ class NarrowPeaks:
             names=self.column_names
         )
         for file_name in self.file_names:
-            file_path = PurePath(self.file_names[file_name]).joinpath(file_name)
+            file_path = PurePath(self.file_names[file_name])\
+                .joinpath(file_name)
             self.files[file_name] = pd.read_csv(
                 file_path,
                 sep='\t',
@@ -299,7 +301,8 @@ class NarrowPeaks:
                     rows_to_drop.append(index_merged)
             i += 1
         rows_to_drop = list(set(rows_to_drop))
-        peaks_before = self.files_merged[next(iter(self.files_merged))].shape[0]
+        peaks_before = self.files_merged[next(iter(self.files_merged))]\
+            .shape[0]
         for file_name in self.files_merged:
             self.files_merged[file_name] = self.files_merged[file_name]\
                 .drop(index=rows_to_drop)
@@ -352,6 +355,16 @@ class NarrowPeaks:
 def cov_matrix(m_sample, theta):
     """
     compute multivariate_normal covariance matrix
+
+    >>> cov_matrix(3, {'rho':0.5, 'sigma':1})
+    array([[1. , 0.5, 0.5],
+           [0.5, 1. , 0.5],
+           [0.5, 0.5, 1. ]])
+    >>> cov_matrix(4, {'rho':0.5, 'sigma':2})
+    array([[2., 1., 1., 1.],
+           [1., 2., 1., 1.],
+           [1., 1., 2., 1.],
+           [1., 1., 1., 2.]])
     """
     cov = np.full(shape=(int(m_sample), int(m_sample)),
                   fill_value=float(theta['rho']) * float(theta['sigma']))
@@ -363,6 +376,22 @@ def cov_matrix(m_sample, theta):
 def sim_multivariate_gaussian(n_value, m_sample, theta):
     """
     draw from a multivariate Gaussian distribution
+
+    >>> sim_multivariate_gaussian(10, 2, \
+        {'mu': 1, 'rho': 0.5, 'sigma': 1}).shape
+    (10, 2)
+    >>> np.mean(sim_multivariate_gaussian(10000, 1, \
+         {'mu': 1, 'rho': 0.5, 'sigma': 1})[:,0]) > 0.9
+    True
+    >>> np.mean(sim_multivariate_gaussian(10000, 1, \
+         {'mu': 1, 'rho': 0.5, 'sigma': 1})[:,0]) < 1.1
+    True
+    >>> np.var(sim_multivariate_gaussian(10000, 1, \
+        {'mu': 1, 'rho': 0.5, 'sigma': 1})[:,0]) > 0.9
+    True
+    >>> np.var(sim_multivariate_gaussian(10000, 1, \
+        {'mu': 1, 'rho': 0.5, 'sigma': 1})[:,0]) < 1.1
+    True
     """
     cov = cov_matrix(m_sample=m_sample,
                      theta=theta)
@@ -376,6 +405,11 @@ def sim_m_samples(n_value, m_sample, theta_0, theta_1):
     """
     simulate sample where position score are drawn from two different
     multivariate Gaussian distribution
+
+    >>> sim_m_samples(100, 4, THETA_INIT, THETA_INIT)['X'].shape
+    (100, 4)
+    >>> len(sim_m_samples(100, 4, THETA_INIT, THETA_INIT)['K'])
+    100
     """
     scores = sim_multivariate_gaussian(n_value=n_value,
                                        m_sample=m_sample,
@@ -396,6 +430,12 @@ def compute_rank(x_score):
     """
     transform x a n*m matrix of score into an n*m matrix of rank ordered by
     row.
+
+    >>> compute_rank(np.array([[0,0],[10,30],[20,20],[30,10]]))
+    array([[1, 1],
+           [2, 4],
+           [3, 3],
+           [4, 2]])
     """
     rank = np.empty_like(x_score)
     for j in range(x_score.shape[1]):
@@ -407,6 +447,14 @@ def compute_rank(x_score):
 def compute_empirical_marginal_cdf(rank):
     """
     normalize ranks to compute empirical marginal cdf and scale by n / (n+1)
+
+    >>> r = compute_rank(np.array([[0.0,0.0],[10.0,30.0],\
+        [20.0,20.0],[30.0,10.0]]))
+    >>> compute_empirical_marginal_cdf(r)
+    array([[0.2, 0.2],
+           [0.4, 0.8],
+           [0.6, 0.6],
+           [0.8, 0.4]])
     """
     x_score = np.empty_like(rank)
     n_value = float(rank.shape[0])
@@ -432,6 +480,15 @@ def g_function(z_values, theta):
 def compute_z_from_u(u_values, theta):
     """
     compute u_ij from z_ij via the G_j function
+
+    >>> r = compute_rank(np.array([[0.0,0.0],[10.0,30.0],\
+        [20.0,20.0],[30.0,10.0]]))
+    >>> u = compute_empirical_marginal_cdf(r)
+    >>> compute_z_from_u(u, {'mu': 1, 'rho': 0.5, 'sigma': 1, 'pi': 0.5})
+    array([[-0.44976896, -0.44976896],
+           [ 0.21303303,  1.44976896],
+           [ 0.78696698,  0.78696698],
+           [ 1.44976896,  0.21303303]])
     """
     #  fixed g function for given theta
     g_func = lambda x: g_function(x,
@@ -717,9 +774,10 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 #                     file_names=["data/test/c1_r1.narrowPeak",
 #                                 "data/test/c1_r2.narrowPeak"])
 
-OPTIONS = parse_args()
-setup_logging(OPTIONS)
-NarrowPeaks(file_merge=OPTIONS.merged,
-            file_names=OPTIONS.files,
-            output=OPTIONS.output,
-            score=OPTIONS.score)
+if __name__ == "__main__":
+    OPTIONS = parse_args()
+    setup_logging(OPTIONS)
+    NarrowPeaks(file_merge=OPTIONS.merged,
+                file_names=OPTIONS.files,
+                output=OPTIONS.output,
+                score=OPTIONS.score)
