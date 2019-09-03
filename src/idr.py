@@ -25,6 +25,7 @@ from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
 import numpy as np
 import pandas as pd
+import logging
 from pynverse import inversefunc
 import matplotlib.pyplot as plt
 
@@ -32,6 +33,21 @@ THETA_INIT = {'pi': 0.5,
               'mu': 0.0,
               'sigma': 1.0,
               'rho': 0.9}
+
+LOGGER = logging.getLogger(path.splitext(path.basename(sys.argv[0]))[0])
+
+
+def setup_logging(options):
+    """Configure logging."""
+    root = logging.getLogger("")
+    root.setLevel(logging.WARNING)
+    LOGGER.setLevel(options.debug and logging.DEBUG or logging.INFO)
+    if options.verbose:
+        message = logging.StreamHandler()
+        message.setFormatter(logging.Formatter(
+            "%(asctime)s: %(message)s", datefmt='%H:%M:%S'))
+        root.addHandler(message)
+
 
 class CustomFormatter(argparse.RawDescriptionHelpFormatter,
                       argparse.ArgumentDefaultsHelpFormatter):
@@ -79,6 +95,12 @@ def parse_args(args=sys.argv[1:]):
                      default=0.01,
                      type=float,
                      help="Threshold value for the precision of the estimator")
+    arg.add_argument("--debug", "-d", action="store_true",
+                     default=False,
+                     help="enable debugging")
+    arg.add_argument("--verbose", action="store_true",
+               default=False,
+               help="log to console")
     return parser.parse_args(args)
 
 
@@ -174,7 +196,9 @@ class NarrowPeaks:
         """
         read peak file
         """
-        print("loading NarrowPeak files...", end='\r')
+        LOGGER.info("%s", "loading " +
+                    str(len(self.file_names) + 1) +
+                    " NarrowPeak files...")
         file_path = PurePath(self.file_merge_path).joinpath(self.file_merge)
         self.files['coords'] = pd.read_csv(
             file_path,
@@ -190,19 +214,26 @@ class NarrowPeaks:
                 header=None,
                 names=self.column_names
             )
-        print("loading NarrowPeak files done.")
+        LOGGER.info("%s", "loading " +
+                    str(len(self.file_names) + 1) +
+                    " NarrowPeak done.")
 
     def sort_peaks(self):
         """
         sort peaks by chr, start, stop, strand and peaks
         """
-        print("sorting NarrowPeak files...", end='\r')
+        LOGGER.info("%s", "sorting " +
+                    str(len(self.files)) +
+                    " NarrowPeak files...")
         sort_key = self.sort_columns
+        i = 0
         for file_name in self.files:
-            print("sorting "+ file_name + " files...", end='\r')
             self.files[file_name] = self.files[file_name]\
                 .sort_values(by=sort_key)
-        print("sorting NarrowPeak files done.")
+            i += 1
+        LOGGER.info("%s", "sorting " +
+                    str(len(self.files)) +
+                    " NarrowPeak done.")
 
     def is_match(self, index_ref, index_file, file_name):
         """
@@ -242,11 +273,14 @@ class NarrowPeaks:
         """
         merge peaks according to the merged files
         """
-        print("building consensus from merged file...", end='\r')
         rows_to_drop = list()
+        i = 0
         for file_name in self.file_names:
-            print("building consensus from merged file for " +
-                  file_name, end='\r')
+            LOGGER.info("%s", "building consensus from merged for " +
+                        str(file_name) + " " +
+                        str(i) + "/" +
+                        str(len(self.files) - 1) +
+                        " NarrowPeak done.")
             self.create_empty_merged(file_name=file_name)
             merged = self.files_merged[file_name]
             score_loc = [merged.columns.get_loc(c) for c in self.score_columns]
@@ -263,14 +297,18 @@ class NarrowPeaks:
                     merged.iloc[index_merged, score_loc] = sub_merged.iloc[0]
                 else:
                     rows_to_drop.append(index_merged)
+            i += 1
         rows_to_drop = list(set(rows_to_drop))
         peaks_before = self.files_merged[next(iter(self.files_merged))].shape[0]
         for file_name in self.files_merged:
             self.files_merged[file_name] = self.files_merged[file_name]\
                 .drop(index=rows_to_drop)
         peaks_after = self.files_merged[next(iter(self.files_merged))].shape[0]
-        print("building consensus from merged file done (" +
-              str(peaks_after) + "/" + str(peaks_before) + " peaks).")
+        LOGGER.info("%s", "building consensus from merged for " +
+                    str(i) + "/" + str(len(self.files) - 1) +
+                    " NarrowPeak done. (" +
+                    str(peaks_after) + "/" + str(peaks_before) + " peaks)."
+                    )
 
     def idr(self, threshold):
         """
@@ -279,7 +317,7 @@ class NarrowPeaks:
         data = np.zeros(shape=(self.files_merged[
             next(iter(self.files_merged))].shape[0],
                                len(self.files_merged)))
-        print("computing idr...", end='\r')
+        LOGGER.info("%s", "computing idr...")
         i = 0
         for file_name in self.files_merged:
             score = np.array(self.files_merged[file_name][self.score])
@@ -287,28 +325,28 @@ class NarrowPeaks:
             i += 1
         theta, lidr = pseudo_likelihood(x_score=data,
                                         threshold=threshold,
-                                        log_name=PurePath(self.output)\
+                                        log_name=PurePath(self.output)
                                         .joinpath(self.file_merge))
+        LOGGER.debug("%s", str(theta))
         i = 0
         for file_name in self.files_merged:
             self.files_merged[file_name]['idr'] = lidr
             i += 1
-        print("computing idr done.")
+        LOGGER.info("%s", "computing idr done.")
 
     def write_file(self):
         """
         write output
         """
-        print("writing output...", end='\r')
         for file_name in self.files_merged:
-            print("writing output for " + file_name, end='\r')
+            LOGGER.info("%s", "writing output for " + file_name)
             output_name = PurePath(self.output)\
                 .joinpath("idr_" + str(file_name))
             print(output_name)
             self.files_merged[file_name].to_csv(output_name,
                                                 sep='\t',
                                                 encoding='utf-8')
-        print("writing output done.")
+        LOGGER.info("%s", "writing output  done.")
 
 
 def cov_matrix(m_sample, theta):
@@ -424,9 +462,9 @@ def h_function(z_values, m_sample, theta):
                                            int(m_sample),
                                            cov=cov)
     except ValueError as err:
-        print("error: h_function: " + str(err))
-        print(cov)
-        print(theta)
+        LOGGER.exception("%s", "error: h_function: " + str(err))
+        LOGGER.exception("%s", str(cov))
+        LOGGER.exception("%s", str(theta))
     return pd.Series(x_values)
 
 
@@ -545,9 +583,9 @@ def loglikelihood(z_values, k_state, theta):
                                          math.log(h1_x[i]))
         return logl
     except ValueError as err:
-        print("error: logLikelihood: " + str(err))
-        print(h1_x[i])
-        print(theta)
+        LOGGER.exception("%s", "error: logLikelihood: " + str(err))
+        LOGGER.exception("%s", str(h1_x[i]))
+        LOGGER.exception("%s", str(theta))
         quit(-1)
 
 
@@ -595,9 +633,9 @@ def em_pseudo_data(z_values,
                                 k_state=k_state,
                                 theta=theta_t1)
         if logl_t1 - logl_t0 < 0.0:
-            print("warning: EM decreassing logLikelihood rho: " +
+            LOGGER.debug("%s", "warning: EM decreassing logLikelihood rho: " +
                   str(logl_t1 - logl_t0))
-            print(theta_t1)
+            LOGGER.debug("%s", str(theta_t1))
             return (theta_t0, k_state, log)
         log = add_log(log=log,
                       theta=theta_t1,
@@ -650,6 +688,7 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
                      z_values,
                      lidr,
                      str(log_name) + "_classif.pdf")
+        LOGGER.debug("%s", str(theta_t1))
     return (theta_t1, lidr)
 
 
@@ -679,6 +718,7 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 #                                 "data/test/c1_r2.narrowPeak"])
 
 OPTIONS = parse_args()
+setup_logging(OPTIONS)
 NarrowPeaks(file_merge=OPTIONS.merged,
             file_names=OPTIONS.files,
             output=OPTIONS.output,
