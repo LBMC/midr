@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-"""Compute the Irroproductible Discovery Rate (IDR) from NarrowPeaks files
+"""Compute the Irreproducible Discovery Rate (IDR) from NarrowPeaks files
 
 Implementation of the IDR methods for two or more replicates.
 
@@ -164,7 +164,7 @@ class NarrowPeaks:
         """
         read peak file
         """
-        print("loading narrowpeak files...", end='\r')
+        print("loading NarrowPeak files...", end='\r')
         file_path = PurePath(self.file_merge_path).joinpath(self.file_merge)
         self.files['coords'] = pd.read_csv(
             file_path,
@@ -180,19 +180,19 @@ class NarrowPeaks:
                 header=None,
                 names=self.column_names
             )
-        print("loading narrowpeak files done.")
+        print("loading NarrowPeak files done.")
 
     def sort_peaks(self):
         """
         sort peaks by chr, start, stop, strand and peaks
         """
-        print("sorting narrowPeak files...", end='\r')
+        print("sorting NarrowPeak files...", end='\r')
         sort_key = self.sort_columns
         for file_name in self.files:
             print("sorting "+ file_name + " files...", end='\r')
             self.files[file_name] = self.files[file_name]\
                 .sort_values(by=sort_key)
-        print("sorting narrowPeak files done.")
+        print("sorting NarrowPeak files done.")
 
     def is_match(self, index_ref, index_file, file_name):
         """
@@ -254,15 +254,20 @@ class NarrowPeaks:
                 else:
                     rows_to_drop.append(index_merged)
         rows_to_drop = list(set(rows_to_drop))
-        for file_name in self.file_names:
-            self.files_merged[file_name].drop(index=rows_to_drop)
-        print("building consensus from merged file done.")
+        peaks_before = self.files_merged[next(iter(self.files_merged))].shape[0]
+        for file_name in self.files_merged:
+            self.files_merged[file_name] = self.files_merged[file_name]\
+                .drop(index=rows_to_drop)
+        peaks_after = self.files_merged[next(iter(self.files_merged))].shape[0]
+        print("building consensus from merged file done (" +
+              str(peaks_after) + "/" + str(peaks_before) + " peaks).")
 
     def idr(self, threshold):
         """
         compute IDR for given score
         """
-        data = np.zeros(shape=(len(self.files['coords'].index),
+        data = np.zeros(shape=(self.files_merged[
+            next(iter(self.files_merged))].shape[0],
                                len(self.files_merged)))
         print("computing idr...", end='\r')
         i = 0
