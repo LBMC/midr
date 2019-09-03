@@ -59,6 +59,12 @@ def parse_args(args=sys.argv[1:]):
                      type=str,
                      nargs='+',
                      help="list of NarrowPeaks files")
+    arg.add_argument("--output", "-o", metavar="DIR",
+                     dest='output',
+                     required=False,
+                     default="results",
+                     type=str,
+                     help="output directory")
     arg.add_argument("--score", "-s", metavar="SCORE_COLUMN",
                      dest='score',
                      required=False,
@@ -134,7 +140,7 @@ class NarrowPeaks:
     score_columns = ['score', 'signalValue', 'pValue', 'qValue']
     sort_columns = ['chr', 'start', 'stop', 'strand', 'peak']
 
-    def __init__(self, file_merge, file_names, score='signalValue',
+    def __init__(self, file_merge, file_names, output, score='signalValue',
                  threshold=0.01):
         """
         Create narrowpeak DataFrame
@@ -154,6 +160,7 @@ class NarrowPeaks:
         for full_path in file_names:
             file_path = PurePath(full_path)
             self.file_names[file_path.name] = file_path.parent
+        self.output = PurePath(output).parent
         self.read_peaks()
         self.sort_peaks()
         self.merge_peaks()
@@ -293,7 +300,7 @@ class NarrowPeaks:
         print("writing output...", end='\r')
         for file_name in self.files_merged:
             print("writing output for " + file_name, end='\r')
-            output_name = PurePath(self.files_merged[file_name])\
+            output_name = PurePath(self.output)\
                 .joinpath("idr_" + str(file_name))
             self.files_merged[file_name].to_csv(output_name,
                                                 sep='\t',
@@ -674,4 +681,5 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 OPTIONS = parse_args()
 NarrowPeaks(file_merge=OPTIONS.merged,
             file_names=OPTIONS.files,
+            output=OPTIONS.output,
             score=OPTIONS.score)
