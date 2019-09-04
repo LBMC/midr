@@ -8,7 +8,7 @@ with open("../README.md", "r") as fh:
 
 setuptools.setup(
     name="idr",
-    version="1.0.0",
+    version="1.0.1",
     packages=['idr'],
     install_requires=[
         'scipy>=1.3',

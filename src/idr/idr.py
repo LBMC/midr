@@ -350,7 +350,8 @@ class NarrowPeaks:
                 .joinpath("idr_" + str(file_name))
             self.files_merged[file_name].to_csv(output_name,
                                                 sep='\t',
-                                                encoding='utf-8')
+                                                encoding='utf-8',
+                                                header=False)
         LOGGER.info("%s", "writing output  done.")
 
 
