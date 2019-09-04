@@ -15,7 +15,7 @@ NarrowPeaks files.
 
 import math
 import sys
-from os import path, makedirs, access, R_OK
+from os import path, makedirs, access, R_OK, W_OK
 from copy import deepcopy
 from pathlib import PurePath
 import argparse
@@ -178,8 +178,6 @@ class NarrowPeaks:
             file_path = PurePath(full_path)
             self.file_names[file_path.name] = file_path.parent
         self.output = PurePath(output)
-        if not path.isdir(self.output):
-            makedirs(self.output)
         self.read_peaks()
         self.sort_peaks()
         self.merge_peaks()
@@ -194,8 +192,10 @@ class NarrowPeaks:
                     str(len(self.file_names) + 1) +
                     " NarrowPeak files...")
         file_path = PurePath(self.file_merge_path).joinpath(self.file_merge)
-        assert path.isfile(file_path) and access(file_path, R_OK), \
-            "File {} doesn't exist or isn't readable".format(file_path)
+        assert path.isfile(file_path), \
+            "File {} doesn't exist".format(file_path)
+        assert access(file_path, R_OK), \
+            "File {} isn't readable".format(file_path)
         self.files['coords'] = pd.read_csv(
             file_path,
             sep='\t',
@@ -205,8 +205,10 @@ class NarrowPeaks:
         for file_name in self.file_names:
             file_path = PurePath(self.file_names[file_name])\
                 .joinpath(file_name)
-            assert path.isfile(file_path) and access(file_path, R_OK), \
-                "File {} doesn't exist or isn't readable".format(file_path)
+            assert path.isfile(file_path), \
+                "File {} doesn't exist".format(file_path)
+            assert access(file_path, R_OK), \
+                "File {} isn't readable".format(file_path)
             self.files[file_name] = pd.read_csv(
                 file_path,
                 sep='\t',
@@ -338,11 +340,14 @@ class NarrowPeaks:
         """
         write output
         """
+        if not path.isdir(self.output):
+            makedirs(self.output)
+        assert access(self.output, W_OK), \
+            "Folder {} isn't readable".format(self.output)
         for file_name in self.files_merged:
             LOGGER.info("%s", "writing output for " + file_name)
             output_name = PurePath(self.output)\
                 .joinpath("idr_" + str(file_name))
-            print(output_name)
             self.files_merged[file_name].to_csv(output_name,
                                                 sep='\t',
                                                 encoding='utf-8')
@@ -771,9 +776,13 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 #                                 "data/test/c1_r2.narrowPeak"])
 
 
-class CleanExit(object):
+class CleanExit():
+    """
+    Class to wrap code to have cleaner exits
+    """
     def __enter__(self):
         return self
+
     def __exit__(self, exc_type, exc_value, exc_tb):
         if exc_type is KeyboardInterrupt:
             return True
@@ -783,6 +792,9 @@ class CleanExit(object):
 
 
 def main():
+    """
+    body of the idr tool
+    """
     with CleanExit():
         try:
             setup_logging(OPTIONS)
