@@ -15,7 +15,7 @@ NarrowPeaks files.
 
 import math
 import sys
-from os import path, makedirs
+from os import path, makedirs, access, R_OK
 from copy import deepcopy
 from pathlib import PurePath
 import argparse
@@ -194,6 +194,8 @@ class NarrowPeaks:
                     str(len(self.file_names) + 1) +
                     " NarrowPeak files...")
         file_path = PurePath(self.file_merge_path).joinpath(self.file_merge)
+        assert path.isfile(file_path) and access(file_path, R_OK), \
+            "File {} doesn't exist or isn't readable".format(file_path)
         self.files['coords'] = pd.read_csv(
             file_path,
             sep='\t',
@@ -203,6 +205,8 @@ class NarrowPeaks:
         for file_name in self.file_names:
             file_path = PurePath(self.file_names[file_name])\
                 .joinpath(file_name)
+            assert path.isfile(file_path) and access(file_path, R_OK), \
+                "File {} doesn't exist or isn't readable".format(file_path)
             self.files[file_name] = pd.read_csv(
                 file_path,
                 sep='\t',
@@ -773,6 +777,8 @@ class CleanExit(object):
     def __exit__(self, exc_type, exc_value, exc_tb):
         if exc_type is KeyboardInterrupt:
             return True
+        if exc_type is AssertionError:
+            return exc_value
         return exc_type is None
 
 
@@ -786,6 +792,9 @@ def main():
                         score=OPTIONS.score)
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")
+            sys.exit(0)
+        except AssertionError as err:
+            print(err)
             sys.exit(0)
 
 
