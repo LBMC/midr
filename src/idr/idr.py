@@ -26,8 +26,8 @@ from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
 import numpy as np
 import pandas as pd
-from pynverse import inversefunc
 import matplotlib.pyplot as plt
+from pynverse import inversefunc
 
 
 def setup_logging(options):
@@ -767,12 +767,26 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 #                                 "data/test/c1_r2.narrowPeak"])
 
 
+class CleanExit(object):
+    def __enter__(self):
+        return self
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        if exc_type is KeyboardInterrupt:
+            return True
+        return exc_type is None
+
+
 def main():
-    setup_logging(OPTIONS)
-    NarrowPeaks(file_merge=OPTIONS.merged,
-                file_names=OPTIONS.files,
-                output=OPTIONS.output,
-                score=OPTIONS.score)
+    with CleanExit():
+        try:
+            setup_logging(OPTIONS)
+            NarrowPeaks(file_merge=OPTIONS.merged,
+                        file_names=OPTIONS.files,
+                        output=OPTIONS.output,
+                        score=OPTIONS.score)
+        except KeyboardInterrupt:
+            print("Shutdown requested...exiting")
+            sys.exit(0)
 
 
 THETA_INIT = {'pi': 0.5,
