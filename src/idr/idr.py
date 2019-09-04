@@ -29,13 +29,6 @@ import pandas as pd
 from pynverse import inversefunc
 import matplotlib.pyplot as plt
 
-THETA_INIT = {'pi': 0.5,
-              'mu': 0.0,
-              'sigma': 1.0,
-              'rho': 0.9}
-
-LOGGER = logging.getLogger(path.splitext(path.basename(sys.argv[0]))[0])
-
 
 def setup_logging(options):
     """Configure logging."""
@@ -691,7 +684,7 @@ def em_pseudo_data(z_values,
                                 theta=theta_t1)
         if logl_t1 - logl_t0 < 0.0:
             LOGGER.debug("%s", "warning: EM decreassing logLikelihood rho: " +
-                  str(logl_t1 - logl_t0))
+                         str(logl_t1 - logl_t0))
             LOGGER.debug("%s", str(theta_t1))
             return (theta_t0, k_state, log)
         log = add_log(log=log,
@@ -748,7 +741,6 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
         LOGGER.debug("%s", str(theta_t1))
     return (theta_t1, lidr)
 
-
 #  THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
 #  THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
 #  THETA_TEST = {'pi': 0.2,
@@ -774,10 +766,20 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 #                     file_names=["data/test/c1_r1.narrowPeak",
 #                                 "data/test/c1_r2.narrowPeak"])
 
-if __name__ == "__main__":
-    OPTIONS = parse_args()
+
+def main():
     setup_logging(OPTIONS)
     NarrowPeaks(file_merge=OPTIONS.merged,
                 file_names=OPTIONS.files,
                 output=OPTIONS.output,
                 score=OPTIONS.score)
+
+
+THETA_INIT = {'pi': 0.5,
+              'mu': 0.0,
+              'sigma': 1.0,
+              'rho': 0.9}
+LOGGER = logging.getLogger(path.splitext(path.basename(sys.argv[0]))[0])
+OPTIONS = parse_args()
+if __name__ == "__main__":
+    main()
