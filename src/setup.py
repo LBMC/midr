@@ -11,10 +11,10 @@ setuptools.setup(
     version="1.0.0",
     packages=['idr'],
     install_requires=[
-        'scipy',
-        'numpy',
-        'pynverse',
-        'matplotlib'
+        'scipy>=1.3',
+        'numpy>=1.16',
+        'pynverse>=0.1',
+        'matplotlib>=3.1'
     ],
     author="Laurent Modolo",
     author_email="laurent.modolo@ens-lyon.fr",
