@@ -9,7 +9,7 @@ of high-throughput experiments. The annals of applied statistics, 2011,
 vol. 5, no 3, p. 1752-1779.
 
 Given a list of peak calls in NarrowPeaks format and the corresponding peak
-call for the merged replicate. This tools compute and append a IDR column to
+call for the merged replicate. This tool computes and appends a IDR column to
 NarrowPeaks files.
 """
 

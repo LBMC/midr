@@ -1,8 +1,8 @@
 # IDR
 
-This tools is designed to compute the Irreproducible Discovery Rate (IDR)
+This tool is designed to compute the Irreproducible Discovery Rate (IDR)
 from NarrowPeaks files for two or more replicates.
-It's an implementation of the method described in the following paper using
+It’s an implementation of the method described in the following paper using
 Gaussian copula.
 
 > LI, Qunhua, BROWN, James B., HUANG, Haiyan, et al. Measuring reproducibility
@@ -16,7 +16,7 @@ local machine for development and testing purposes.
 
 ### Prerequisites
 
-To run **midr** on you computer you need to have python (>= 3) installed.
+To run **midr** on your computer you need to have python (>= 3) installed.
 
 ```sh
 python3 --version
@@ -24,7 +24,7 @@ python3 --version
 
 ### Installing
 
-To easily install **midr** on you computer using `pip` run the following command:
+To easily install **midr** on your computer using `pip` run the following command:
 
 ```
 pip3 install midr
@@ -39,12 +39,12 @@ python3 setup.py install
 ```
 
 Given a list of peak calls in NarrowPeaks format and the corresponding peak
-call for the merged replicate. This tools compute and append a IDR column to
+call for the merged replicate. This tool computes and appends a IDR column to
 NarrowPeaks files.
 
 ### Dependencies
 
-The **idr** package depend on the following python3 library:
+The **idr** package depends on the following python3 library:
 
 - [scipy>=1.3](https://scipy.org) [DOI:10.1109/MCSE.2007.58](https://doi.org/10.1109/MCSE.2007.58) [DOI:10.1109/MCSE.2011.36](https://doi.org/10.1109/MCSE.2011.36)
 
@@ -73,7 +73,7 @@ The **idr** package depend on the following python3 library:
 
 ## Usage
 
-**idr** takes as input file in the [NarrowPeaks format](https://genome.ucsc.edu/FAQ/FAQformat.html#format12),
+**idr** Takes as input file in the [NarrowPeaks format](https://genome.ucsc.edu/FAQ/FAQformat.html#format12),
 and output NarrowPeaks files with an additional *idr* column.
 
 Computing *IDR* between three replicates
@@ -84,11 +84,11 @@ $ midr -m merged_peak_calling.NarrowPeaks \
      -o results
 ```
 
-where `replicate1_.NarrowPeaks` is the output of the peak caller on the 
+Where `replicate1_.NarrowPeaks` is the output of the peak caller on the 
 alignment file corresponding to the first replicate and 
 `merged_peak_calling.NarrowPeaks` is the output of the peak caller on the merge
 of the replicates alignment files.
-`results` is the directory where we want to output our results.
+`Results` are the directory where we want to output our results.
 
 Displaying help:
 
@@ -107,7 +107,7 @@ of high-throughput experiments. The annals of applied statistics, 2011,
 vol. 5, no 3, p. 1752-1779.                                                   
                                                                               
 Given a list of peak calls in NarrowPeaks format and the corresponding peak   
-call for the merged replicate. This tools compute and append a IDR column to  
+call for the merged replicate. This tool computes and appends a IDR column to  
 NarrowPeaks files.                                                            
                                                                               
 optional arguments:                                                           
@@ -137,4 +137,4 @@ IDR settings:
 
 ## License
 
-This project is licensed under the CeCiLL License- see the [LICENSE](LICENSE) file for details
+This project is licensed under the CeCiLL License- see the [LICENSE](LICENSE) file for details.
