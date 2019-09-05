@@ -9,7 +9,7 @@ with open("../README.md", "r") as fh:
 setuptools.setup(
     name="midr",
     version="1.0.1",
-    packages=['idr'],
+    packages=['midr'],
     install_requires=[
         'scipy>=1.3',
         'numpy>=1.16',
@@ -21,7 +21,7 @@ setuptools.setup(
     description="Compute idr from m NarrowPeak files and a merged NarrowPeak",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/LBMC/idr",
+    url="https://github.com/LBMC/midr",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: CEA CNRS Inria Logiciel Libre License, \
