@@ -189,6 +189,9 @@ class NarrowPeaks:
         self.file_names = dict()
         for full_path in file_names:
             file_path = PurePath(full_path)
+            assert file_path.name not in self.file_names, \
+                "error: file names must be unique (option --file or -f): {}"\
+                .format(file_path.name)
             self.file_names[file_path.name] = file_path.parent
         self.output = PurePath(output)
         self.read_peaks()
