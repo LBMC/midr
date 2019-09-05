@@ -16,7 +16,7 @@ local machine for development and testing purposes.
 
 ### Prerequisites
 
-To run **idr** on you computer you need to have python (>= 3) installed.
+To run **midr** on you computer you need to have python (>= 3) installed.
 
 ```sh
 python3 --version
@@ -24,17 +24,17 @@ python3 --version
 
 ### Installing
 
-To easily install **idr** on you computer using `pip` run the following command:
+To easily install **midr** on you computer using `pip` run the following command:
 
 ```
-pip3 install idr
+pip3 install midr
 ```
 
 Otherwise you can clone this repository:
 
 ```
-git clone url
-cd idr/src/
+git clone https://github.com/LBMC/midr.git
+cd midr/src/
 python3 setup.py install
 ```
 
@@ -79,7 +79,7 @@ and output NarrowPeaks files with an additional *idr* column.
 Computing *IDR* between three replicates
 
 ```
-$ idr -m merged_peak_calling.NarrowPeaks \
+$ midr -m merged_peak_calling.NarrowPeaks \
      -f replicate1_.NarrowPeaks replicate2.NarrowPeaks replicate3.NarrowPeaks \
      -o results
 ```
@@ -93,8 +93,8 @@ of the replicates alignment files.
 Displaying help:
 
 ```
-$ idr -h
-usage: idr [-h] --merged FILE --files FILES [FILES ...] [--output DIR]        
+$ midr -h
+usage: midr [-h] --merged FILE --files FILES [FILES ...] [--output DIR]       
            [--score SCORE_COLUMN] [--threshold THRESHOLD] [--debug]           
            [--verbose]                                                        
                                                                               
