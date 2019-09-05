@@ -182,6 +182,10 @@ class NarrowPeaks:
         self.read_peaks()
         self.sort_peaks()
         self.merge_peaks()
+        assert access(PurePath(self.output).parent, W_OK), \
+            "Folder {} isn't writable".format(self.output)
+        if not path.isdir(self.output):
+            makedirs(self.output)
         self.idr(threshold=threshold)
         self.write_file()
 
@@ -341,10 +345,6 @@ class NarrowPeaks:
         """
         write output
         """
-        assert access(PurePath(self.output).parent, W_OK), \
-            "Folder {} isn't writable".format(self.output)
-        if not path.isdir(self.output):
-            makedirs(self.output)
         for file_name in self.files_merged:
             LOGGER.info("%s", "writing output for " + file_name)
             output_name = PurePath(self.output)\
@@ -803,7 +803,8 @@ def main():
             NarrowPeaks(file_merge=OPTIONS.merged,
                         file_names=OPTIONS.files,
                         output=OPTIONS.output,
-                        score=OPTIONS.score)
+                        score=OPTIONS.score,
+                        threshold=OPTIONS.threshold)
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")
             sys.exit(0)
