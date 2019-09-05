@@ -341,10 +341,10 @@ class NarrowPeaks:
         """
         write output
         """
+        assert access(PurePath(self.output).parent, W_OK), \
+            "Folder {} isn't writable".format(self.output)
         if not path.isdir(self.output):
             makedirs(self.output)
-        assert access(self.output, W_OK), \
-            "Folder {} isn't readable".format(self.output)
         for file_name in self.files_merged:
             LOGGER.info("%s", "writing output for " + file_name)
             output_name = PurePath(self.output)\
