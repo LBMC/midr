@@ -14,6 +14,7 @@ setuptools.setup(
         'scipy>=1.3',
         'numpy>=1.16',
         'pynverse>=0.1',
+        'pandas>=0.25.0',
         'matplotlib>=3.1'
     ],
     author="Laurent Modolo",

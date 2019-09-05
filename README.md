@@ -69,6 +69,10 @@ The **idr** package depends on the following python3 library:
 >  J. D. Hunter, "Matplotlib: A 2D Graphics Environment",
 > Computing in Science & Engineering, vol. 9, no. 3, pp. 90-95, 2007.
 
+- [pandas>=0.25.0](https://pandas.pydata.org)
+> McKinney. Data Structures for Statistical Computing in Python, Proceedings
+> of the 9th Python in Science Conference, 51-56 (2010) [(publisher link)](http://conference.scipy.org/proceedings/scipy2010/mckinney.html)
+
 - [pynverse>=0.1](https://pypi.org/project/pynverse/)
 
 ## Usage
