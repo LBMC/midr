@@ -91,7 +91,7 @@ def parse_args(args=sys.argv[1:]):
     arg.add_argument("--debug", "-d", action="store_true",
                      default=False,
                      help="enable debugging")
-    arg.add_argument("--verbose", action="store_true",
+    arg.add_argument("--verbose", "-v", action="store_true",
                      default=False,
                      help="log to console")
     return parser.parse_args(args)

@@ -7,7 +7,7 @@ with open("../README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="idr",
+    name="midr",
     version="1.0.1",
     packages=['idr'],
     install_requires=[
@@ -31,6 +31,6 @@ version 2.1 (CeCILL-2.1)",
     test_suite='pytest',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': ['idr=idr.idr:main'],
+        'console_scripts': ['midr=midr.midr:main'],
     }
 )

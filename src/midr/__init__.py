@@ -5,5 +5,5 @@
 idr library
 """
 
-name = "idr"
-__all__ = ["idr"]
+name = "midr"
+__all__ = ["midr"]
