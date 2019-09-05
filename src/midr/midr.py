@@ -167,8 +167,9 @@ class NarrowPeaks:
         if score in self.column_names[6:9]:
             self.score = score
         else:
-            print("error: " + str(score) +
-                  " must be a narrowpeak score column")
+            LOGGER.exception("error: " + str(score) +
+                             " must be a NarrowPeak score column " +
+                             str(self.score_columns))
             quit(-1)
         file_path = PurePath(file_merge)
         self.file_merge = file_path.name
