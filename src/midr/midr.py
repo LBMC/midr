@@ -273,15 +273,6 @@ class NarrowPeaks:
             return False
         return True
 
-    def merge_line(self, index_ref, index_file, file_name):
-        """
-        merge current file line with merged peak file
-        """
-        line = self.files['coords'][index_ref]
-        for col in self.score_columns:
-            line[col] = self.files[file_name][index_file][col]
-        return line
-
     def create_empty_merged(self, file_name):
         """
         helper function for merge_peaks
@@ -289,6 +280,81 @@ class NarrowPeaks:
         self.files_merged[file_name] = self.files['coords'].copy()
         self.files_merged[file_name].loc[:, self.score_columns] = -1
         self.files_merged[file_name].drop_duplicates()
+
+    def peak_overlap(self, peak_a, peak_b):
+        """
+        return true if two peak are overlapping and false otherwise
+        """
+        if peak_a['strand'] != peak_b['strand']:
+            return False
+        if ((peak_a['start'] <= peak_b['start'] and
+             peak_b['start'] <= peak_a['stop']) or
+            (peak_a['start'] <= peak_b['stop'] and
+             peak_b['stop'] <= peak_a['stop'])):
+            return True
+        return False
+
+    def peak_after(self, peak_a, peak_b):
+        """
+        return True if peak_b is after peak_a and non_overlapping
+        """
+        if peak_a['strand'] == peak_b['strand']:
+            if peak_a['stop'] < peak_b['start']:
+                return True
+        else:
+            if peak_a['strand'] == '+':
+                if peak_a['stop'] < peak_b['stop']:
+                    return True
+            if peak_a['strand'] == '-':
+                if peak_a['start'] < peak_b['start']:
+                    return True
+        return False
+
+    def best_peak(self, peak_a, peak_b, peak_c):
+        """
+        return true if peak_b as a better overlap with peak_a than peak_c
+        """
+        overlap_ab = max([abs(peak_a['stop'] - peak_b['start']),
+                          abs(peak_b['stop'] - peak_a['start'])])
+        overlap_ac = max([abs(peak_a['stop'] - peak_c['start']),
+                          abs(peak_c['stop'] - peak_a['start'])])
+        if overlap_ab > overlap_ac:
+            return True
+        if overlap_ac > overlap_ab:
+            return False
+        peak_dist_ab = abs((peak_a['start'] + peak_a['peak']) -
+                           (peak_b['start'] + peak_b['peak']))
+        peak_dist_ac = abs((peak_a['start'] + peak_a['peak']) -
+                           (peak_c['start'] + peak_c['peak']))
+        if peak_dist_ab > peak_dist_ac:
+            return True
+        if peak_dist_ac > peak_dist_ab:
+            return False
+        if peak_b['score'] >= peak_c['score']:
+            return True
+        return False
+
+    def merge_line(self, ref_line, file_line, merge_line):
+        """
+        merge current file line with merged peak file
+        return a dict of the next line to read
+        """
+        if self.peak_after(ref_line, file_line):
+            return {ref_line: True, file_line: False}
+        if self.peak_after(file_line, ref_line):
+            return {ref_line: False, file_line: True}
+        if merge_line[self.score] != -1:
+            if self.peak_overlap(ref_line, file_line):
+                merge_line[self.score_columns] = \
+                    file_line[self.score_columns].deepcopy()
+                return {ref_line: False, file_line: True}
+        else:
+            if self.peak_overlap(ref_line, file_line):
+                if self.best_peak(ref_line, file_line, merge_line):
+                    merge_line[self.score_columns] = \
+                        file_line[self.score_columns].deepcopy()
+                return {ref_line: False, file_line: True}
+        return {ref_line: True, file_line: True}
 
     def merge_peaks(self):
         """
