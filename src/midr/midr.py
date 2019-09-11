@@ -246,32 +246,14 @@ class NarrowPeaks:
         LOGGER.info("%s", "sorting " +
                     str(len(self.files)) +
                     " NarrowPeak files...")
-        sort_key = self.sort_columns
         i = 0
         for file_name in self.files:
             self.files[file_name] = self.files[file_name]\
-                .sort_values(by=sort_key)
+                .sort_values(by=self.sort_columns)
             i += 1
         LOGGER.info("%s", "sorting " +
                     str(len(self.files)) +
                     " NarrowPeak done.")
-
-    def is_match(self, index_ref, index_file, file_name):
-        """
-        helper function for merge peaks
-        return True if the peak is within the merged peak file
-        """
-        ref_strand = self.files['coords']['strand'][index_ref]
-        peak_strand = self.files[file_name]['strand'][index_file]
-        if peak_strand != ref_strand:
-            return False
-        peak = self.files[file_name]['peak'][index_file] + \
-            self.files[file_name]['start'][index_file]
-        start = self.files['coords']['start'][index_ref]
-        stop = self.files['coords']['stop'][index_ref]
-        if peak < start or peak > stop:
-            return False
-        return True
 
     def create_empty_merged(self, file_name):
         """
@@ -281,10 +263,12 @@ class NarrowPeaks:
         self.files_merged[file_name].loc[:, self.score_columns] = -1
         self.files_merged[file_name].drop_duplicates()
 
-    def peak_overlap(self, peak_a, peak_b):
+    def peak_overlap(self, file_name, index_ref, index_file):
         """
         return true if two peak are overlapping and false otherwise
         """
+        peak_a = self.files_merged[file_name][index_ref]
+        peak_b = self.files[file_name][index_file]
         if peak_a['strand'] != peak_b['strand']:
             return False
         if ((peak_a['start'] <= peak_b['start'] and
@@ -294,26 +278,35 @@ class NarrowPeaks:
             return True
         return False
 
-    def peak_after(self, peak_a, peak_b):
+    def peak_after(self, file_name, index_ref, index_file):
         """
         return True if peak_b is after peak_a and non_overlapping
         """
+        peak_a = self.files_merged[file_name][index_ref]
+        peak_b = self.files[file_name][index_file]
         if peak_a['strand'] == peak_b['strand']:
             if peak_a['stop'] < peak_b['start']:
                 return True
-        else:
-            if peak_a['strand'] == '+':
-                if peak_a['stop'] < peak_b['stop']:
-                    return True
-            if peak_a['strand'] == '-':
-                if peak_a['start'] < peak_b['start']:
-                    return True
         return False
 
-    def best_peak(self, peak_a, peak_b, peak_c):
+    def peak_before(self, file_name, index_ref, index_file):
+        """
+        return True if peak_b is before peak_a and non_overlapping
+        """
+        peak_b = self.files_merged[file_name][index_ref]
+        peak_a = self.files[file_name][index_file]
+        if peak_a['strand'] == peak_b['strand']:
+            if peak_a['stop'] < peak_b['start']:
+                return True
+        return False
+
+    def best_peak(self, file_name, index_ref, index_file, index_merge):
         """
         return true if peak_b as a better overlap with peak_a than peak_c
         """
+        peak_a = self.files_merged[file_name][index_ref]
+        peak_b = self.files[file_name][index_file]
+        peak_c = self.files_merged[file_name][index_merge]
         overlap_ab = max([abs(peak_a['stop'] - peak_b['start']),
                           abs(peak_b['stop'] - peak_a['start'])])
         overlap_ac = max([abs(peak_a['stop'] - peak_c['start']),
@@ -334,27 +327,45 @@ class NarrowPeaks:
             return True
         return False
 
-    def merge_line(self, ref_line, file_line, merge_line):
+    def copy_score(self, file_name, indexe_ref, index_file):
+        """
+        function to copy the score column of file_line into ref_line
+        """
+        for column in self.score_columns:
+            self.files_merged[file_name][indexe_ref, column] = \
+                self.files[file_name][index_file, column]
+
+    def merge_line(self, file_name, indexes, rows_to_drop):
         """
         merge current file line with merged peak file
         return a dict of the next line to read
         """
-        if self.peak_after(ref_line, file_line):
-            return {ref_line: True, file_line: False}
-        if self.peak_after(file_line, ref_line):
-            return {ref_line: False, file_line: True}
-        if merge_line[self.score] != -1:
-            if self.peak_overlap(ref_line, file_line):
-                merge_line[self.score_columns] = \
-                    file_line[self.score_columns].deepcopy()
-                return {ref_line: False, file_line: True}
+        if self.peak_overlap(file_name, indexes['ref'], indexes['file']):
+            if self.files_merged[file_name].iloc[indexes['ref'],
+                                                 self.score] != -1:
+                if self.best_peak(file_name,
+                                  indexes['ref'], indexes['file'],
+                                  indexes['merged']):
+                    self.copy_score(file_name,
+                                    indexes['ref'],
+                                    indexes['file'])
+                    indexes['merged'] = indexes['file']
+                indexes['file'] += 1
+            else:
+                self.copy_score(file_name,
+                                indexes['ref'],
+                                indexes['file'])
+                indexes['merged'] = indexes['file']
+                indexes['file'] += 1
         else:
-            if self.peak_overlap(ref_line, file_line):
-                if self.best_peak(ref_line, file_line, merge_line):
-                    merge_line[self.score_columns] = \
-                        file_line[self.score_columns].deepcopy()
-                return {ref_line: False, file_line: True}
-        return {ref_line: True, file_line: True}
+            if self.peak_after(file_name, indexes['ref'], indexes['file']):
+                rows_to_drop.append(indexes['ref'])
+                indexes['ref'] += 1
+            if self.peak_before(file_name, indexes['ref'], indexes['file']):
+                indexes['file'] += 1
+            return {'ref': indexes['ref'],
+                    'file': indexes['file'],
+                    'merged': indexes['merged']}
 
     def merge_peaks(self):
         """
@@ -369,21 +380,16 @@ class NarrowPeaks:
                         str(len(self.files) - 1) +
                         " NarrowPeak done.")
             self.create_empty_merged(file_name=file_name)
-            merged = self.files_merged[file_name]
-            score_loc = [merged.columns.get_loc(c) for c in self.score_columns]
-            tomerge = self.files[file_name]
-            for index_merged, row_merged in merged.iterrows():
-                start = row_merged['start']
-                stop = row_merged['stop']
-                sub_merged = tomerge.loc[
-                    (tomerge['start'] + tomerge['peak'] >= start) &
-                    (tomerge['start'] + tomerge['peak'] <= stop),
-                    self.score_columns
-                ]
-                if sub_merged.shape[0] > 0:
-                    merged.iloc[index_merged, score_loc] = sub_merged.iloc[0]
-                else:
-                    rows_to_drop.append(index_merged)
+            indexes = {'ref': 0,
+                       'file': 0,
+                       'merged': 0}
+            while (indexes['ref'] < self.files_merged[file_name].shape[0] and
+                   indexes['file'] < self.files[file_name].shape[0]):
+                indexes = self.merge_line(
+                    file_name=file_name,
+                    indexes=indexes,
+                    rows_to_drop=rows_to_drop
+                )
             i += 1
         rows_to_drop = list(set(rows_to_drop))
         peaks_before = self.files_merged[next(iter(self.files_merged))]\
@@ -522,10 +528,21 @@ def compute_rank(x_score):
            [3, 3],
            [4, 2]])
     """
+    plt.scatter(x_score[:, 0],
+                x_score[:, 1])
+    plt.ylabel('rank file 2')
+    plt.xlabel('rank file 1')
+    plt.savefig("test_plot_0.pdf")
     rank = np.empty_like(x_score)
     for j in range(x_score.shape[1]):
         # we want the rank to start at 1
         rank[:, j] = rankdata(x_score[:, j])
+
+    plt.scatter(rank[:, 0],
+                rank[:, 1])
+    plt.ylabel('rank file 2')
+    plt.xlabel('rank file 1')
+    plt.savefig("test_plot_1.pdf")
     return rank
 
 
