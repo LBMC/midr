@@ -167,7 +167,7 @@ class NarrowPeaks:
     column_names = ['chr', 'start', 'stop', 'name', 'score', 'strand',
                     'signalValue', 'pValue', 'qValue', 'peak']
     score_columns = ['score', 'signalValue', 'pValue', 'qValue']
-    sort_columns = ['chr', 'start', 'stop', 'strand', 'peak']
+    sort_columns = ['chr', 'strand', 'start', 'stop', 'peak']
 
     def __init__(self, file_merge, file_names, output, score='signalValue',
                  threshold=0.01):
@@ -285,6 +285,8 @@ class NarrowPeaks:
         if (peak_b['start'] <= peak_a['stop'] and
                 peak_a['stop'] <= peak_b['stop']):
             return True
+        #  print(("skip", self.files[file_name].loc[index_file, self.sort_columns].tolist(),
+        #         self.files_merged[file_name].loc[index_ref, self.sort_columns].tolist()))
         return False
 
     def peak_after(self, file_name, index_ref, index_file):
@@ -350,13 +352,15 @@ class NarrowPeaks:
             return True
         return False
 
-    def copy_score(self, file_name, indexe_ref, index_file):
+    def copy_score(self, file_name, index_ref, index_file):
         """
         function to copy the score column of file_line into ref_line
         """
         for column in self.score_columns:
-            self.files_merged[file_name].loc[indexe_ref, column] = \
+            self.files_merged[file_name].loc[index_ref, column] = \
                 self.files[file_name].loc[index_file, column]
+        #  print(("copy", self.files[file_name].loc[index_file, self.sort_columns].tolist(),
+        #         self.files_merged[file_name].loc[index_ref, self.sort_columns].tolist()))
 
     def merge_overlap(self, file_name, indexes):
         """
@@ -380,16 +384,13 @@ class NarrowPeaks:
         indexes['file'] += 1
         return indexes
 
-    def merge_non_overlap(self, file_name, indexes, rows_to_drop):
+    def merge_non_overlap(self, file_name, indexes):
         """
         how to merge line in case of no overlap
         """
         if self.peak_after(file_name,
                            indexes['ref'],
                            indexes['file']):
-            if self.files_merged[file_name].loc[indexes['ref'],
-                                                self.score] == -1:
-                rows_to_drop.append(indexes['ref'])
             indexes['ref'] += 1
         elif self.peak_before(file_name,
                               indexes['ref'],
@@ -400,7 +401,7 @@ class NarrowPeaks:
                              "error: merge_non_overlap: merge non overlap")
         return indexes
 
-    def merge_line(self, file_name, indexes, rows_to_drop):
+    def merge_line(self, file_name, indexes):
         """
         merge current file line with merged peak file
         return a dict of the next line to read
@@ -410,14 +411,24 @@ class NarrowPeaks:
                                       indexes)
         else:
             return self.merge_non_overlap(file_name,
-                                          indexes,
-                                          rows_to_drop)
+                                          indexes)
+
+    def drop_line(self):
+        """
+        remove line with score of -1 in at least one replicate
+        """
+        rows_to_drop = list()
+        for file_name in self.files_merged:
+            for index, line in self.files_merged[file_name].iterrows():
+                if line[self.score] == -1:
+                    rows_to_drop.append(index)
+        for file_name in self.files_merged:
+            self.files_merged[file_name].drop(rows_to_drop)
 
     def merge_peaks(self):
         """
         merge peaks according to the merged files
         """
-        rows_to_drop = list()
         i = 0
         for file_name in self.file_names:
             LOGGER.info("%s", "building consensus from merged for " +
@@ -434,16 +445,20 @@ class NarrowPeaks:
                 indexes = self.merge_line(
                     file_name=file_name,
                     indexes=indexes,
-                    rows_to_drop=rows_to_drop
                 )
             i += 1
-        rows_to_drop = list(set(rows_to_drop))
-        peaks_before = self.files_merged[next(iter(self.files_merged))]\
-            .shape[0]
-        for file_name in self.files_merged:
-            self.files_merged[file_name] = self.files_merged[file_name]\
-                .drop(index=rows_to_drop)
-        peaks_after = self.files_merged[next(iter(self.files_merged))].shape[0]
+            df = self.files_merged[file_name]
+            print(df.loc[(df['chr'] == "chr6") &
+                            (df['start'] == 143142117) &
+                            (df['stop'] == 143142778 )])
+        peaks_before = self.files_merged[self.file_names[0]].shape[0]
+        self.drop_line()
+        for file_name in self.file_names:
+            df = self.files_merged[file_name]
+            print(df.loc[(df['chr'] == "chr6") &
+                            (df['start'] == 143142117) &
+                            (df['stop'] == 143142778 )])
+        peaks_after = self.files_merged[self.file_names[0]].shape[0]
         LOGGER.info("%s", "building consensus from merged for " +
                     str(i) + "/" + str(len(self.files) - 1) +
                     " NarrowPeak done. (" +
