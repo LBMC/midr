@@ -422,8 +422,10 @@ class NarrowPeaks:
             for index, line in self.files_merged[file_name].iterrows():
                 if line[self.score] == -1:
                     rows_to_drop.append(index)
+        print("row to drop  : " + str(len(rows_to_drop)))
         for file_name in self.files_merged:
-            self.files_merged[file_name].drop(rows_to_drop)
+            self.files_merged[file_name] = \
+                self.files_merged[file_name].drop(rows_to_drop)
 
     def merge_peaks(self):
         """
@@ -435,7 +437,7 @@ class NarrowPeaks:
                         str(file_name) + " " +
                         str(i) + "/" +
                         str(len(self.files) - 1) +
-                        " NarrowPeak done.")
+                        " NarrowPeak ...")
             self.create_empty_merged(file_name=file_name)
             indexes = {'ref': 0,
                        'file': 0,
@@ -447,28 +449,38 @@ class NarrowPeaks:
                     indexes=indexes,
                 )
             i += 1
+            df = self.files[file_name]
+            print(df.loc[(df['chr'] == "chr6") &
+                         (df['start'] == 117906697) &
+                         (df['stop'] == 117907371)])
+            df = self.files[file_name]
+            print(df.loc[(df['chr'] == "chr6") &
+                         (df['start'] == 117906411) &
+                         (df['stop'] == 117908265)])
             df = self.files_merged[file_name]
             print(df.loc[(df['chr'] == "chr6") &
-                            (df['start'] == 143142117) &
-                            (df['stop'] == 143142778 )])
-        peaks_before = self.files_merged[self.file_names[0]].shape[0]
+                         (df['start'] == 117906676) &
+                         (df['stop'] == 117908211 )])
+        peaks_before = self.files_merged[next(iter(self.file_names))].shape[0]
         self.drop_line()
         for file_name in self.file_names:
             df = self.files_merged[file_name]
             print(df.loc[(df['chr'] == "chr6") &
-                            (df['start'] == 143142117) &
-                            (df['stop'] == 143142778 )])
-        peaks_after = self.files_merged[self.file_names[0]].shape[0]
+                         (df['start'] == 117906676) &
+                         (df['stop'] == 117908211 )])
+        peaks_after = self.files_merged[next(iter(self.file_names))].shape[0]
         LOGGER.info("%s", "building consensus from merged for " +
                     str(i) + "/" + str(len(self.files) - 1) +
                     " NarrowPeak done. (" +
                     str(peaks_after) + "/" + str(peaks_before) + " peaks)."
                     )
+        self.write_file()
 
     def idr(self, threshold):
         """
         compute IDR for given score
         """
+        quit(0)
         data = np.zeros(shape=(self.files_merged[
             next(iter(self.files_merged))].shape[0],
                                len(self.files_merged)))
