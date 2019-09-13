@@ -176,40 +176,38 @@ class NarrowPeaks:
     score_columns = ['score', 'signalValue', 'pValue', 'qValue']
     sort_columns = ['chr', 'strand', 'start', 'stop', 'peak']
 
-    def __init__(self, file_merge, file_names, output, score='signalValue',
-                 threshold=0.01,
-                 merge_function='mean'):
+    def __init__(self, params):
         """
         Create narrowpeak DataFrame
         """
         self.files = dict()
         self.files_merged = dict()
-        if merge_function ==  'mean':
+        if params.merge_function ==  'mean':
             self.merge_function = np.mean
-        elif merge_function == 'median':
+        elif params.merge_function == 'median':
             self.merge_function = np.median
-        elif merge_function == 'min':
+        elif params.merge_function == 'min':
             self.merge_function = min
         else:
             self.merge_function = max
-        if score in self.column_names[6:9]:
-            self.score = score
+        if params.score in self.column_names[6:9]:
+            self.score = params.score
         else:
-            LOGGER.exception("error: " + str(score) +
+            LOGGER.exception("error: " + str(params.score) +
                              " must be a NarrowPeak score column " +
                              str(self.score_columns))
             quit(-1)
-        file_path = PurePath(file_merge)
+        file_path = PurePath(params.merged)
         self.file_merge = file_path.name
         self.file_merge_path = file_path.parent
         self.file_names = dict()
-        for full_path in file_names:
+        for full_path in params.files:
             file_path = PurePath(full_path)
             assert file_path.name not in self.file_names, \
                 "error: file names must be unique (option --file or -f): {}"\
                 .format(file_path.name)
             self.file_names[file_path.name] = file_path.parent
-        self.output = PurePath(output)
+        self.output = PurePath(params.output)
         self.read_peaks()
         self.sort_peaks()
         self.collapse_peaks()
@@ -218,7 +216,7 @@ class NarrowPeaks:
             "Folder {} isn't writable".format(self.output)
         if not path.isdir(self.output):
             makedirs(self.output)
-        self.idr(threshold=threshold)
+        self.idr(threshold=params.threshold)
         self.write_file()
 
     def read_peaks(self):
@@ -529,7 +527,8 @@ class NarrowPeaks:
         i = 0
         for file_name in self.files_merged:
             score = np.array(self.files_merged[file_name][self.score])
-            data[:, i] = score.astype(float)
+            pval = np.array(self.files_merged[file_name]['pValue'])
+            data[:, i] = score.astype(float)+ pval.astype(float)
             i += 1
         theta, lidr = pseudo_likelihood(x_score=data,
                                         threshold=threshold,
@@ -1015,12 +1014,7 @@ def main():
     with CleanExit():
         try:
             setup_logging(OPTIONS)
-            NarrowPeaks(file_merge=OPTIONS.merged,
-                        file_names=OPTIONS.files,
-                        output=OPTIONS.output,
-                        score=OPTIONS.score,
-                        threshold=OPTIONS.threshold,
-                        merge_function=OPTIONS.merge_function)
+            NarrowPeaks(OPTIONS)
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")
             sys.exit(0)
