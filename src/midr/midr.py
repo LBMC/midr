@@ -88,6 +88,13 @@ def parse_args(args=sys.argv[1:]):
                      default=0.01,
                      type=float,
                      help="Threshold value for the precision of the estimator")
+    arg.add_argument("--merge_function", "-mf", metavar="MERGE_FUNCTION",
+                     dest='merge_function',
+                     required=False,
+                     default='max',
+                     type=str,
+                     help="function to determine the score to keep for \
+                     overlpping peak ('max', 'mean', 'median', 'min')")
     arg.add_argument("--debug", "-d", action="store_true",
                      default=False,
                      help="enable debugging")
@@ -170,12 +177,21 @@ class NarrowPeaks:
     sort_columns = ['chr', 'strand', 'start', 'stop', 'peak']
 
     def __init__(self, file_merge, file_names, output, score='signalValue',
-                 threshold=0.01):
+                 threshold=0.01,
+                 merge_function='mean'):
         """
         Create narrowpeak DataFrame
         """
         self.files = dict()
         self.files_merged = dict()
+        if merge_function ==  'mean':
+            self.merge_function = np.mean
+        elif merge_function == 'median':
+            self.merge_function = np.median
+        elif merge_function == 'min':
+            self.merge_function = min
+        else:
+            self.merge_function = max
         if score in self.column_names[6:9]:
             self.score = score
         else:
@@ -495,7 +511,6 @@ class NarrowPeaks:
             i += 1
         peaks_before = self.files_merged[next(iter(self.file_names))].shape[0]
         self.drop_line()
-        for file_name in self.file_names:
         peaks_after = self.files_merged[next(iter(self.file_names))].shape[0]
         LOGGER.info("%s", "building consensus from merged for " +
                     str(i) + "/" + str(len(self.files) - 1) +
@@ -536,10 +551,13 @@ class NarrowPeaks:
             LOGGER.info("%s", "writing output for " + file_name)
             output_name = PurePath(self.output)\
                 .joinpath("idr_" + str(file_name))
-            self.files_merged[file_name].to_csv(output_name,
-                                                sep='\t',
-                                                encoding='utf-8',
-                                                header=False)
+            self.files_merged[file_name]\
+                .to_csv(output_name,
+                        sep='\t',
+                        encoding='utf-8',
+                        columns=self.column_names + ['idr'],
+                        header=False,
+                        index=False)
         LOGGER.info("%s", "writing output  done.")
 
 
@@ -1002,7 +1020,8 @@ def main():
                         file_names=OPTIONS.files,
                         output=OPTIONS.output,
                         score=OPTIONS.score,
-                        threshold=OPTIONS.threshold)
+                        threshold=OPTIONS.threshold,
+                        merge_function=OPTIONS.merge_function)
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")
             sys.exit(0)
