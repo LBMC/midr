@@ -517,7 +517,6 @@ class NarrowPeaks:
                     " NarrowPeak done. (" +
                     str(peaks_after) + "/" + str(peaks_before) + " peaks)."
                     )
-        self.write_file()
 
     def idr(self, threshold):
         """
