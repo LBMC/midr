@@ -196,6 +196,7 @@ class NarrowPeaks:
         self.output = PurePath(output)
         self.read_peaks()
         self.sort_peaks()
+        self.collapse_peaks()
         self.merge_peaks()
         assert access(PurePath(self.output).parent, W_OK), \
             "Folder {} isn't writable".format(self.output)
@@ -255,6 +256,47 @@ class NarrowPeaks:
                     str(len(self.files)) +
                     " NarrowPeak done.")
 
+    def collapse_peaks(self, av_func=max):
+        """
+        merge overlapping peak in the same file
+        """
+        for file_name in ['coords'] + list(self.file_names.keys()):
+            LOGGER.info("%s", "collapsing " +
+                        str(file_name) +
+                        " with " +
+                        str(self.files[file_name].shape[0]) +
+                        " peaks...")
+            index_t0 = 0
+            index_t1 = 1
+            to_merge = list()
+            while index_t1 < self.files[file_name].shape[0]:
+                if self.peak_overlap(file_name=file_name,
+                                     index_ref=index_t0,
+                                     index_file=index_t1,
+                                     ref=self.files):
+                    to_merge.append(index_t0)
+                else:
+                    if to_merge:
+                        to_merge.append(index_t0)
+                        to_merge = self.files[file_name].index.intersection(
+                            to_merge
+                        )
+                        self.files[file_name].loc[to_merge[0], self.score] = \
+                            av_func(self.files[file_name].loc[to_merge,
+                                                              self.score])
+                        self.files[file_name] = \
+                            self.files[file_name].drop(to_merge[1:])
+                        del to_merge
+                        to_merge = list()
+                index_t0 += 1
+                index_t1 += 1
+            self.files[file_name] = self.files[file_name].reset_index()
+            LOGGER.info("%s", "collapsing " +
+                        str(file_name) +
+                        " with " +
+                        str(self.files[file_name].shape[0]) +
+                        " peaks done.")
+
     def create_empty_merged(self, file_name):
         """
         helper function for merge_peaks
@@ -263,38 +305,41 @@ class NarrowPeaks:
         self.files_merged[file_name].loc[:, self.score_columns] = -1
         self.files_merged[file_name].drop_duplicates()
 
-    def peak_overlap(self, file_name, index_ref, index_file):
+    def peak_overlap(self, file_name, index_ref, index_file, ref=None):
         """
         return true if two peak are overlapping and false otherwise
         """
-        peak_a = self.files_merged[file_name].iloc[index_ref]
-        peak_b = self.files[file_name].iloc[index_file]
+        peak_a = None
+        if ref is None:
+            peak_a = self.files_merged[file_name].loc[index_ref]
+        else:
+            peak_a = ref[file_name].loc[index_ref]
+        peak_b = self.files[file_name].loc[index_file]
+        overlap = False
         if peak_a['strand'] != peak_b['strand']:
-            return False
+            return overlap
         if peak_a['chr'] != peak_b['chr']:
-            return False
+            return overlap
         if (peak_a['start'] <= peak_b['start'] and
                 peak_b['start'] <= peak_a['stop']):
-            return True
+            overlap = True
         if (peak_a['start'] <= peak_b['stop'] and
                 peak_b['stop'] <= peak_a['stop']):
-            return True
+            overlap = True
         if (peak_b['start'] <= peak_a['start'] and
                 peak_a['start'] <= peak_b['stop']):
-            return True
+            overlap = True
         if (peak_b['start'] <= peak_a['stop'] and
                 peak_a['stop'] <= peak_b['stop']):
-            return True
-        #  print(("skip", self.files[file_name].loc[index_file, self.sort_columns].tolist(),
-        #         self.files_merged[file_name].loc[index_ref, self.sort_columns].tolist()))
-        return False
+            overlap = True
+        return overlap
 
     def peak_after(self, file_name, index_ref, index_file):
         """
         return True if peak_b is after peak_a and non_overlapping
         """
-        peak_a = self.files_merged[file_name].iloc[index_ref]
-        peak_b = self.files[file_name].iloc[index_file]
+        peak_a = self.files_merged[file_name].loc[index_ref]
+        peak_b = self.files[file_name].loc[index_file]
         if peak_a['chr'] != peak_b['chr']:
             chr_a_index = self.files_merged[file_name]['chr']\
                 .unique().tolist().index(peak_a['chr'])
@@ -311,8 +356,8 @@ class NarrowPeaks:
         """
         return True if peak_b is before peak_a and non_overlapping
         """
-        peak_b = self.files_merged[file_name].iloc[index_ref]
-        peak_a = self.files[file_name].iloc[index_file]
+        peak_b = self.files_merged[file_name].loc[index_ref]
+        peak_a = self.files[file_name].loc[index_file]
         if peak_a['chr'] != peak_b['chr']:
             chr_b_index = self.files_merged[file_name]['chr']\
                 .unique().tolist().index(peak_b['chr'])
@@ -329,9 +374,9 @@ class NarrowPeaks:
         """
         return true if peak_b as a better overlap with peak_a than peak_c
         """
-        peak_a = self.files_merged[file_name].iloc[index_ref]
-        peak_b = self.files[file_name].iloc[index_file]
-        peak_c = self.files[file_name].iloc[index_merge]
+        peak_a = self.files_merged[file_name].loc[index_ref]
+        peak_b = self.files[file_name].loc[index_file]
+        peak_c = self.files[file_name].loc[index_merge]
         overlap_ab = max([abs(peak_a['stop'] - peak_b['start']),
                           abs(peak_b['stop'] - peak_a['start'])])
         overlap_ac = max([abs(peak_a['stop'] - peak_c['start']),
@@ -359,8 +404,6 @@ class NarrowPeaks:
         for column in self.score_columns:
             self.files_merged[file_name].loc[index_ref, column] = \
                 self.files[file_name].loc[index_file, column]
-        #  print(("copy", self.files[file_name].loc[index_file, self.sort_columns].tolist(),
-        #         self.files_merged[file_name].loc[index_ref, self.sort_columns].tolist()))
 
     def merge_overlap(self, file_name, indexes):
         """
@@ -422,10 +465,11 @@ class NarrowPeaks:
             for index, line in self.files_merged[file_name].iterrows():
                 if line[self.score] == -1:
                     rows_to_drop.append(index)
-        print("row to drop  : " + str(len(rows_to_drop)))
         for file_name in self.files_merged:
             self.files_merged[file_name] = \
                 self.files_merged[file_name].drop(rows_to_drop)
+            self.files_merged[file_name] = \
+                self.files_merged[file_name].reset_index()
 
     def merge_peaks(self):
         """
@@ -449,25 +493,9 @@ class NarrowPeaks:
                     indexes=indexes,
                 )
             i += 1
-            df = self.files[file_name]
-            print(df.loc[(df['chr'] == "chr6") &
-                         (df['start'] == 117906697) &
-                         (df['stop'] == 117907371)])
-            df = self.files[file_name]
-            print(df.loc[(df['chr'] == "chr6") &
-                         (df['start'] == 117906411) &
-                         (df['stop'] == 117908265)])
-            df = self.files_merged[file_name]
-            print(df.loc[(df['chr'] == "chr6") &
-                         (df['start'] == 117906676) &
-                         (df['stop'] == 117908211 )])
         peaks_before = self.files_merged[next(iter(self.file_names))].shape[0]
         self.drop_line()
         for file_name in self.file_names:
-            df = self.files_merged[file_name]
-            print(df.loc[(df['chr'] == "chr6") &
-                         (df['start'] == 117906676) &
-                         (df['stop'] == 117908211 )])
         peaks_after = self.files_merged[next(iter(self.file_names))].shape[0]
         LOGGER.info("%s", "building consensus from merged for " +
                     str(i) + "/" + str(len(self.files) - 1) +
@@ -480,7 +508,6 @@ class NarrowPeaks:
         """
         compute IDR for given score
         """
-        quit(0)
         data = np.zeros(shape=(self.files_merged[
             next(iter(self.files_merged))].shape[0],
                                len(self.files_merged)))
