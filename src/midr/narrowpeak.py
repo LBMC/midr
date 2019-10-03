@@ -187,7 +187,7 @@ class NarrowPeaks:
         if params.score in self.column_names[6:9]:
             self.score = params.score
         else:
-            LOGGER.exception("error: " + str(params.score) +
+            LOGGER.exception("%s", "error: " + str(params.score) +
                              " must be a NarrowPeak score column " +
                              str(self.score_columns))
             quit(-1)
@@ -202,6 +202,14 @@ class NarrowPeaks:
                 .format(file_path.name)
             self.file_names[file_path.name] = file_path.parent
         self.output = PurePath(params.output)
+        self.threshold = params.threshold
+        self.idr_func = idr_func
+        self.run_analysis()
+
+    def run_analysis(self):
+        """
+        run midr analysis
+        """
         self.read_peaks()
         self.sort_peaks()
         self.collapse_peaks()
@@ -210,7 +218,7 @@ class NarrowPeaks:
             "Folder {} isn't writable".format(self.output)
         if not path.isdir(self.output):
             makedirs(self.output)
-        self.idr(threshold=params.threshold, idr_func=idr_func)
+        self.idr()
         self.write_file()
 
     def read_peaks(self):
@@ -509,7 +517,7 @@ class NarrowPeaks:
                     str(peaks_after) + "/" + str(peaks_before) + " peaks)."
                     )
 
-    def idr(self, threshold, idr_func):
+    def idr(self):
         """
         compute IDR for given score
         """
@@ -523,10 +531,10 @@ class NarrowPeaks:
             pval = np.array(self.files_merged[file_name]['qValue'])
             data[:, i] = score.astype(float) + pval.astype(float)
             i += 1
-        theta, lidr = idr_func(x_score=data,
-                               threshold=threshold,
-                               log_name=PurePath(self.output)
-                               .joinpath(self.file_merge))
+        theta, lidr = self.idr_func(x_score=data,
+                                    threshold=self.threshold,
+                                    log_name=PurePath(self.output)
+                                    .joinpath(self.file_merge))
         LOGGER.debug("%s", str(theta))
         i = 0
         for file_name in self.files_merged:
@@ -550,6 +558,23 @@ class NarrowPeaks:
                         header=False,
                         index=False)
         LOGGER.info("%s", "writing output  done.")
+
+
+
+
+
+def narrowpeaks2array(np_list: pd.array, score_col: str) -> np.array:
+    """
+    convert a list of pd.array representing narrowpeak files to an np.array
+    of their score column
+    """
+    scores = None
+    for np_file in np_list:
+        if scores is None:
+            scores = np.array(np_file.loc[score_col])
+        else:
+            np.append(scores, np_file.loc[score_col], axis=1)
+    return scores
 
 
 LOGGER = logging.getLogger(path.splitext(path.basename(sys.argv[0]))[0])
