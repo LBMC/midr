@@ -2,162 +2,24 @@
 
 """Compute the Irreproducible Discovery Rate (IDR) from NarrowPeaks files
 
-Implementation of the IDR methods for two or more replicates.
-
-LI, Qunhua, BROWN, James B., HUANG, Haiyan, et al. Measuring reproducibility
-of high-throughput experiments. The annals of applied statistics, 2011,
-vol. 5, no 3, p. 1752-1779.
-
-Given a list of peak calls in NarrowPeaks format and the corresponding peak
-call for the merged replicate. This tool computes and appends a IDR column to
-NarrowPeaks files.
+This section of the project provides facilitites to handle NarrowPeaks files
+and compute IDR on the choosen value in the NarrowPeaks columns
 """
 
 import sys
 from os import path, makedirs, access, R_OK, W_OK
 from pathlib import PurePath
-import argparse
-import logging
+from typing import List, Any, Union
+
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
+import logging
 
-def add_log(log, theta, logl, pseudo):
-    """
-    function to append thata and ll value to the logs
-    """
-    log['logl'].append(logl)
-    if pseudo:
-        log['pseudo_data'].append('#FF4949')
-    else:
-        log['pseudo_data'].append('#4970FF')
-    for parameters in theta:
-        log[parameters].append(theta[parameters])
-    return log
+from pandas import DataFrame
+from pandas.io.parsers import TextFileReader
 
-
-def setup_logging(options):
-    """Configure logging."""
-    root = logging.getLogger("")
-    root.setLevel(logging.WARNING)
-    LOGGER.setLevel(options.debug and logging.DEBUG or logging.INFO)
-    if options.verbose:
-        message = logging.StreamHandler()
-        message.setFormatter(logging.Formatter(
-            "%(asctime)s: %(message)s", datefmt='%H:%M:%S'))
-        root.addHandler(message)
-
-
-class CustomFormatter(argparse.RawDescriptionHelpFormatter,
-                      argparse.ArgumentDefaultsHelpFormatter):
-    """
-    helper class to make ArgumentParser
-    """
-
-
-def parse_args(args):
-    """Parse arguments."""
-    parser = argparse.ArgumentParser(
-        description=sys.modules[__name__].__doc__,
-        formatter_class=CustomFormatter)
-
-    arg = parser.add_argument_group("IDR settings")
-    arg.add_argument("--merged", "-m", metavar="FILE",
-                     dest='merged',
-                     required=True,
-                     default=argparse.SUPPRESS,
-                     type=str,
-                     help="file of the merged NarrowPeaks")
-    arg.add_argument("--files", "-f", metavar="FILES",
-                     dest='files',
-                     required=True,
-                     default=argparse.SUPPRESS,
-                     type=str,
-                     nargs='+',
-                     help="list of NarrowPeaks files")
-    arg.add_argument("--output", "-o", metavar="DIR",
-                     dest='output',
-                     required=False,
-                     default="results",
-                     type=str,
-                     help="output directory")
-    arg.add_argument("--score", "-s", metavar="SCORE_COLUMN",
-                     dest='score',
-                     required=False,
-                     default='signalValue',
-                     type=str,
-                     help="NarrowPeaks score column to compute the IDR on, \
-                     one of 'score', 'signalValue', 'pValue' or 'qValue'")
-    arg.add_argument("--threshold", "-t", metavar="THRESHOLD",
-                     dest='threshold',
-                     required=False,
-                     default=0.01,
-                     type=float,
-                     help="Threshold value for the precision of the estimator")
-    arg.add_argument("--merge_function", "-mf", metavar="MERGE_FUNCTION",
-                     dest='merge_function',
-                     required=False,
-                     default='max',
-                     type=str,
-                     help="function to determine the score to keep for \
-                     overlpping peak ('max', 'mean', 'median', 'min')")
-    arg.add_argument("--debug", "-d", action="store_true",
-                     default=False,
-                     help="enable debugging")
-    arg.add_argument("--verbose", "-v", action="store_true",
-                     default=False,
-                     help="log to console")
-    return parser.parse_args(args)
-
-
-
-def plot_log(log, file_name):
-    """
-    plot logs into a file
-    """
-    x_axis = np.linspace(start=0,
-                         stop=len(log['logl']),
-                         num=len(log['logl']))
-    i = 1
-    for parameters in log:
-        if parameters != "pseudo_data":
-            plt.subplot(len(log.keys()), 1, i)
-            plt.scatter(x_axis,
-                        log[parameters],
-                        c=log['pseudo_data'],
-                        s=2)
-            plt.ylabel(parameters)
-            plt.xlabel('steps')
-            i += 1
-    plt.savefig(file_name)
-
-
-def plot_classif(x_score, u_values, z_values, lidr, file_name):
-    """
-    plot logs into a file
-    """
-    plt.subplot(4, 1, 1)
-    plt.hist(x_score[:, 0], bins=1000, label=str(0))
-    plt.ylabel('counts')
-    plt.xlabel('x scores')
-    plt.subplot(4, 1, 2)
-    plt.hist(z_values[:, 0], bins=1000, label=str(0))
-    plt.ylabel('counts')
-    plt.xlabel('z scores')
-    plt.subplot(4, 1, 3)
-    dotplot1 = plt.scatter(x_score[:, 1], z_values[:, 0], c=lidr)
-    plt.ylabel('z score')
-    plt.xlabel('x scores')
-    cbar = plt.colorbar(dotplot1)
-    cbar.ax.set_ylabel('lidr')
-    plt.subplot(4, 1, 4)
-    dotplot2 = plt.scatter(u_values[:, 1], z_values[:, 0], c=lidr)
-    plt.ylabel('z score')
-    plt.xlabel('u scores')
-    cbar = plt.colorbar(dotplot2)
-    cbar.ax.set_ylabel('lidr')
-    plt.savefig(file_name)
+import log
 
 
 class NarrowPeaks:
@@ -198,8 +60,8 @@ class NarrowPeaks:
         for full_path in params.files:
             file_path = PurePath(full_path)
             assert file_path.name not in self.file_names, \
-                "error: file names must be unique (option --file or -f): {}"\
-                .format(file_path.name)
+                "error: file names must be unique (option --file or -f): {}" \
+                    .format(file_path.name)
             self.file_names[file_path.name] = file_path.parent
         self.output = PurePath(params.output)
         self.threshold = params.threshold
@@ -240,7 +102,7 @@ class NarrowPeaks:
             names=self.column_names
         )
         for file_name in self.file_names:
-            file_path = PurePath(self.file_names[file_name])\
+            file_path = PurePath(self.file_names[file_name]) \
                 .joinpath(file_name)
             assert path.isfile(file_path), \
                 "File {} doesn't exist".format(file_path)
@@ -265,7 +127,7 @@ class NarrowPeaks:
                     " NarrowPeak files...")
         i = 0
         for file_name in self.files:
-            self.files[file_name] = self.files[file_name]\
+            self.files[file_name] = self.files[file_name] \
                 .sort_values(by=self.sort_columns)
             i += 1
         LOGGER.info("%s", "sorting " +
@@ -357,9 +219,9 @@ class NarrowPeaks:
         peak_a = self.files_merged[file_name].loc[index_ref]
         peak_b = self.files[file_name].loc[index_file]
         if peak_a['chr'] != peak_b['chr']:
-            chr_a_index = self.files_merged[file_name]['chr']\
+            chr_a_index = self.files_merged[file_name]['chr'] \
                 .unique().tolist().index(peak_a['chr'])
-            chr_b_index = self.files[file_name]['chr']\
+            chr_b_index = self.files[file_name]['chr'] \
                 .unique().tolist().index(peak_b['chr'])
             if chr_a_index < chr_b_index:
                 return True
@@ -375,9 +237,9 @@ class NarrowPeaks:
         peak_b = self.files_merged[file_name].loc[index_ref]
         peak_a = self.files[file_name].loc[index_file]
         if peak_a['chr'] != peak_b['chr']:
-            chr_b_index = self.files_merged[file_name]['chr']\
+            chr_b_index = self.files_merged[file_name]['chr'] \
                 .unique().tolist().index(peak_b['chr'])
-            chr_a_index = self.files[file_name]['chr']\
+            chr_a_index = self.files[file_name]['chr'] \
                 .unique().tolist().index(peak_a['chr'])
             if chr_a_index < chr_b_index:
                 return True
@@ -522,7 +384,7 @@ class NarrowPeaks:
         compute IDR for given score
         """
         data = np.zeros(shape=(self.files_merged[
-            next(iter(self.files_merged))].shape[0],
+                                   next(iter(self.files_merged))].shape[0],
                                len(self.files_merged)))
         LOGGER.info("%s", "computing idr...")
         i = 0
@@ -548,9 +410,9 @@ class NarrowPeaks:
         """
         for file_name in self.files_merged:
             LOGGER.info("%s", "writing output for " + file_name)
-            output_name = PurePath(self.output)\
+            output_name = PurePath(self.output) \
                 .joinpath("idr_" + str(file_name))
-            self.files_merged[file_name]\
+            self.files_merged[file_name] \
                 .to_csv(output_name,
                         sep='\t',
                         encoding='utf-8',
@@ -560,22 +422,185 @@ class NarrowPeaks:
         LOGGER.info("%s", "writing output  done.")
 
 
-
-
-
-def narrowpeaks2array(np_list: pd.array, score_col: str) -> np.array:
+def narrowpeak_cols() -> list:
     """
-    convert a list of pd.array representing narrowpeak files to an np.array
+    Return list of narrowpeak column names
+    :return: a list of string
+    """
+    return ['chr', 'start', 'stop', 'name', 'score', 'strand',
+            'signalValue', 'pValue', 'qValue', 'peak']
+
+
+def narrowpeaks_score() -> str:
+    """
+    Return the score column of narrowpeak files
+    :return:
+    """
+    return 'signalValue'
+
+
+def narrowpeaks_sort_cols() -> list:
+    """
+    Return a list of column to sort and merge peaks on
+    :return: a list of string
+    """
+    return ['chr', 'start', 'stop', 'strand', 'peak']
+
+
+def readbed(bed_path: PurePath, bed_cols: list = narrowpeak_cols()) -> pd.DataFrame:
+    """
+    Read a bed file from a PurePath object
+    :type bed_cols: list of str
+    :param bed_path: PurePath of the bedfile
+    :param bed_cols: list of columns names
+    :return: a pd.DataFrame corresponding to the bed file
+    """
+    assert path.isfile(str(bed_path)), f"File {str(bed_path)} doesn't exist"
+    assert access(str(bed_path), R_OK), f"File {str(bed_path)} isn't readable"
+    return pd.read_csv(
+        bed_path,
+        sep='\t',
+        header=None,
+        names=bed_cols
+    )
+
+
+def sort_bed(bed_file: pd.DataFrame,
+             sort_cols: list = narrowpeaks_sort_cols()) -> pd.DataFrame:
+    """
+    Sort bed files according to sort_cols columns
+    :param bed_file: bed file loaded as a pd.DataFrame
+    :param sort_cols: list of columns to sort the pd.DataFrame on
+    :return: None the array is sorted as is
+    """
+    return bed_file.sort_values(by=sort_cols)
+
+
+def readbeds(bed_paths: list,
+             bed_cols: list = narrowpeak_cols(),
+             sort_cols: list = narrowpeaks_sort_cols()) -> list:
+    """
+    Read a list of bed files from a PurePath list
+    :type bed_paths: list of PurePath objects
+    :param bed_paths: list of PurePath
+    :param bed_cols: list of bedfiles columns
+    :param sort_cols: list of columns to sort the pd.DataFrame on
+    :return: list of pd.DataFrame
+    """
+    bed_files: List[PurePath] = list()
+    for bed_path in bed_paths:
+        bed_files.append(
+            sort_bed(
+                bed_file=readbed(bed_path, bed_cols),
+                sort_cols=sort_cols
+            )
+        )
+    return bed_files
+
+
+def readfiles(file_names: list,
+              file_cols: list = narrowpeak_cols()) -> list:
+    """
+    Reads a list of bed filenames and return a list of pd.DataFrame
+    :param file_names: list of bed files to read
+    :param file_cols: list of bed file columns
+    :return: list[pd.DataFrame] containing the file csv columns
+    """
+    bed_paths = list()
+    for file_name in file_names:
+        bed_paths.append(PurePath(file_name))
+    return readbeds(bed_paths=bed_paths, bed_cols=file_cols)
+
+
+def pos_overlap(pos_ref: pd.Series, pos: pd.Series) -> bool:
+    """
+    Return True if two bed position overlap with each other
+    :param pos_ref bed line in the reference bed file,
+    :param pos bed line in the considered bed file
+    :return: bool, True if pos overlap and false otherwise
+
+    >>> pos_overlap(pos_ref = dict(chr='a', start=100, stop=120, strand="."),
+    ... pos = dict(chr='a', start=100, stop=120, strand="."))
+    True
+    >>> pos_overlap(pos_ref = dict(chr='a', start=100, stop=120, strand="."),
+    ... pos = dict(chr='a', start=110, stop=130, strand="."))
+    True
+    >>> pos_overlap(pos_ref = dict(chr='a', start=100, stop=120, strand="."),
+    ... pos = dict(chr='b', start=100, stop=120, strand="."))
+    False
+    >>> pos_overlap(pos_ref = dict(chr='a', start=100, stop=120, strand="."),
+    ... pos = dict(chr='b', start=130, stop=150, strand="."))
+    False
+    >>> pos_overlap(pos_ref = dict(chr='a', start=130, stop=150, strand="."),
+    ... pos = dict(chr='b', start=100, stop=120, strand="."))
+    False
+    """
+    for pos_col in ['chr', 'strand']:
+        assert isinstance(pos_ref[pos_col], str), \
+            f'pos_overlapp: {pos_col} = {pos_ref[pos_col]} isn\'t a str'
+        assert isinstance(pos[pos_col], str), \
+            f'pos_overlapp: {pos_col} = {pos[pos_col]} isn\'t a str'
+        if pos_ref[pos_col] != pos[pos_col]:
+            return False
+    # pos before pos_ref
+    if pos_ref['start'] > pos['stop']:
+        return False
+    # pos after pos_ref
+    if pos_ref['stop'] < pos['start']:
+        return False
+    return True
+
+def best_peak(peak_ref: pd.Series, peaks: pd.DataFrame) -> int:
+    """
+    Return the index of the closest peak to peak_ref in peaks in case of
+    equality return the one with the highest score
+    :param peak_ref: the reference peak (line of a narrowpeak file)
+    :param peaks: a list of peaks (lines of a narrowpeak file)
+    :return: int index of the closest peak in peaks
+
+    >>> best_peak(peak_ref=pd.Series({'peak': 100, 'score': 20}),
+    ... peaks=pd.DataFrame({'peak': [90, 110, 105], 'score': [5, 10, 20]}))
+    2
+    >>> best_peak(peak_ref=pd.Series({'peak': 100, 'score': 20}),
+    ... peaks=pd.DataFrame({'peak': [90, 105, 105], 'score': [5, 20, 10]}))
+    1
+    """
+    pos = abs(peaks.peak - peak_ref.peak).idxmin()
+    if peaks.peak.where(peaks.iloc[pos].peak == peaks.peak).size == 1:
+        return pos
+    else:
+        return peaks.score.where(peaks.iloc[pos].peak == peaks.peak).idxmax()
+
+
+def narrowpeaks2array(np_list: list,
+                      score_col: str = narrowpeaks_score()) -> np.array:
+    """
+    convert a list of pd.DataFrame representing bed files to an np.array
     of their score column
+    :type np_list: list[pd.DataFrame]
+    :type score_col: str colname of the score column
+    :param np_list: list of pd.DataFrame representing bed files
+    :param score_col: score column to use to compute IDR
+    :return np.array whose columns are the score columns of the bed files
+
+    >>> narrowpeaks2array(np_list=[
+    ... pd.DataFrame({'peak': [90, 105, 105], 'signalValue': [5, 20, 10]}),
+    ... pd.DataFrame({'peak': [90, 105, 105], 'signalValue': [5, 21, 11]}),
+    ... pd.DataFrame({'peak': [90, 105, 105], 'signalValue': [5, 22, 12]})]
+    ... )
+    array([[ 5,  5,  5],
+           [20, 21, 22],
+           [10, 11, 12]])
     """
-    scores = None
+    scores = list()
+    np_file: pd.DataFrame
     for np_file in np_list:
-        if scores is None:
-            scores = np.array(np_file.loc[score_col])
-        else:
-            np.append(scores, np_file.loc[score_col], axis=1)
-    return scores
+        scores.append(np.array(np_file[score_col].to_numpy()))
+    return np.stack(scores, axis=-1)
 
 
 LOGGER = logging.getLogger(path.splitext(path.basename(sys.argv[0]))[0])
-OPTIONS = parse_args(args=sys.argv[1:])
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()

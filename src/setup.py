@@ -32,6 +32,6 @@ version 2.1 (CeCILL-2.1)",
     test_suite='pytest',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': ['midr=midr.midr:main'],
+        'console_scripts': ['midr=midr.__main__:main'],
     }
 )

@@ -462,41 +462,8 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 #                                 "data/test/c1_r2.narrowPeak"])
 
 
-class CleanExit():
-    """
-    Class to wrap code to have cleaner exits
-    """
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        if exc_type is KeyboardInterrupt:
-            return True
-        if exc_type is AssertionError:
-            return exc_value
-        return exc_type is None
-
-
-def main():
-    """
-    body of the idr tool
-    """
-    with CleanExit():
-        try:
-            narrowpeak.setup_logging(narrowpeak.OPTIONS)
-            narrowpeak.NarrowPeaks(narrowpeak.OPTIONS,
-                                   idr_func=pseudo_likelihood)
-        except KeyboardInterrupt:
-            print("Shutdown requested...exiting")
-            sys.exit(0)
-        except AssertionError as err:
-            print(err)
-            sys.exit(0)
-
 
 THETA_INIT = {'pi': 0.5,
               'mu': 0.0,
               'sigma': 1.0,
               'rho': 0.9}
-if __name__ == "__main__":
-    main()

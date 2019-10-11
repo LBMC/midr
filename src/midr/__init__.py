@@ -6,4 +6,4 @@ idr library
 """
 
 name = "midr"
-__all__ = ["midr"]
+__all__ = ["__main__", "idr", "log", "narrowpeak"]
