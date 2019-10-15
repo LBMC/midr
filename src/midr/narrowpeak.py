@@ -659,40 +659,55 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
     ... peaks_it=iter(range(10))
     ... )
     >>> next(test_iter)
+    (0, 1, 0)
+    >>> next(test_iter)
+    (1, 2, 2)
+    >>> next(test_iter)
+    (2, 5, 3)
+    >>> next(test_iter)
+    (3, 6, 6)
+    >>> next(test_iter)
+    (4, 9 ,7)
+    >>> try:
+    ...     next(test_iter)
+    ... except StopIteration:
+    ...     print("end")
+    end
     """
     merged_peak = next(merged_peaks_it)
     peak = next(peaks_it)
     prev_peak = None
     while True:
         try:
-            print((merged_peak, peak - 1, prev_peak))
             # if merged_peak before peak
-            if peaks.iloc[peak, 'stop'] < merged_peaks.iloc[
-                merged_peak, 'start'
+            if peaks.iloc[peak]['stop'] < merged_peaks.iloc[
+                merged_peak]['start'
             ]:
                 peak = next(peaks_it)
                 prev_peak = None
             # if merged_peak after peak
-            if merged_peaks.iloc[merged_peak, 'stop'] < peaks.iloc[
-                peak, 'start'
+            if merged_peaks.iloc[merged_peak]['stop'] < peaks.iloc[
+                peak]['start'
             ]:
                 merged_peak = next(merged_peaks_it)
                 prev_peak = None
             if pos_overlap(
-                    pos_ref=merged_peaks.iloc[merged_peak, :],
-                    pos=peaks.iloc[peak, :]
+                    pos_ref=merged_peaks.iloc[merged_peak],
+                    pos=peaks.iloc[peak]
             ):
                 if prev_peak is None:
                     prev_peak = peak
                 peak = next(peaks_it)
-            else:
-                if merged_peak is not None:
-                    if peak is not None:
-                        if prev_peak is not None:
-                            yield (merged_peak, peak - 1, prev_peak)
-            print((merged_peak, peak - 1, prev_peak))
         except StopIteration:
             break  # Iterator exhausted: stop the loop
+        else:
+            if not pos_overlap(
+                    pos_ref=merged_peaks.iloc[merged_peak],
+                    pos=peaks.iloc[peak]
+            ) and prev_peak is not None:
+                yield ((merged_peak, peak - 1, prev_peak))
+                prev_peak = None
+
 
 
 def merge_peaks(ref_peaks: pd.DataFrame,
