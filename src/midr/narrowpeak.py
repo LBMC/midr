@@ -572,7 +572,8 @@ def pos_overlap(pos_ref: pd.Series, pos: pd.Series) -> bool:
 
 
 def best_peak(ref_peak: pd.Series, peaks: pd.DataFrame,
-              start_pos: int = 0) -> int:
+              start_pos: int = 0,
+              score_col: str = narrowpeaks_score()) -> int:
     """
     Return the index of the closest peak to peak_ref in peaks in case of
     equality return the one with the highest score
@@ -581,15 +582,17 @@ def best_peak(ref_peak: pd.Series, peaks: pd.DataFrame,
     :param start_pos: int starting position of peaks
     :return: int index of the closest peak in peaks
 
-    >>> best_peak(ref_peak=pd.Series({'peak': 100, 'score': 20}),
-    ... peaks=pd.DataFrame({'peak': [90, 110, 105], 'score': [5, 10, 20]}))
+    >>> best_peak(ref_peak=pd.Series({'peak': 100, 'signalValue': 20}),
+    ... peaks=pd.DataFrame({'peak': [90, 110, 105],
+    ... 'signalValue': [5, 10, 20]}))
     2
-    >>> best_peak(ref_peak=pd.Series({'peak': 100, 'score': 20}),
-    ... peaks=pd.DataFrame({'peak': [90, 105, 105], 'score': [5, 20, 10]}))
+    >>> best_peak(ref_peak=pd.Series({'peak': 100, 'signalValue': 20}),
+    ... peaks=pd.DataFrame({'peak': [90, 105, 105],
+    ... 'signalValue': [5, 20, 10]}))
     1
     >>> test_peak = pd.DataFrame({'peak': [90, 105, 105, 90, 105, 105],
-    ... 'score': [5, 20, 10, 5, 20, 10]})
-    >>> best_peak(ref_peak=pd.Series({'peak': 100, 'score': 20}),
+    ... 'signalValue': [5, 20, 10, 5, 20, 10]})
+    >>> best_peak(ref_peak=pd.Series({'peak': 100, 'signalValue': 20}),
     ... peaks=test_peak.iloc[3:6, :])
     1
     """
@@ -598,8 +601,9 @@ def best_peak(ref_peak: pd.Series, peaks: pd.DataFrame,
     if peaks.peak.where(peaks.iloc[pos].peak == peaks.peak).size == 1:
         return pos + start_pos
     else:
-        return peaks.score.where(peaks.iloc[pos].peak == peaks.peak).idxmax() \
-               + start_pos
+        return peaks[score_col] \
+                   .where(
+            peaks.iloc[pos].peak == peaks.peak).idxmax() + start_pos
 
 
 def merge_peak(ref_peak: pd.Series, peak: pd.Series,
@@ -716,7 +720,6 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
                 prev_peak = None
 
 
-
 def merge_peaks(ref_peaks: pd.DataFrame,
                 peaks: pd.DataFrame,
                 score: str = narrowpeaks_score(),
@@ -732,12 +735,12 @@ def merge_peaks(ref_peaks: pd.DataFrame,
 
     >>> merge_peaks(
     ... ref_peaks=pd.DataFrame({
-    ... 'chr': ['a', 'a', 'a', 'a', 'a'],
-    ... 'start': [100, 1000, 4000, 100000, 200000],
-    ... 'stop': [500, 3000, 10000, 110000, 230000],
-    ... 'strand': [".", ".", ".", ".", "."],
-    ... 'peak': [250, 2000, 7000, 100000, 215000],
-    ... 'score': [20, 100, 15, 30, 200]}),
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [50, 100, 1000, 4000, 100000, 200000],
+    ... 'stop': [60, 500, 3000, 10000, 110000, 230000],
+    ... 'strand': [".", ".", ".", ".", ".", "."],
+    ... 'peak': [55, 250, 2000, 7000, 100000, 215000],
+    ... 'signalValue': [10, 20, 100, 15, 30, 200]}),
     ... peaks=pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
     ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
@@ -747,16 +750,18 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
     ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
     ... 220000],
-    ... 'score': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
+    ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
     ... )
-      chr   start    stop strand    peak  score
-    0   a     100     500      .     250     20
-    1   a    1000    3000      .    2000    100
-    2   a    4000   10000      .    7000     30
-    3   a  100000  110000      .  100000     30
-    4   a  200000  230000      .  215000    300
+      chr   start    stop strand    peak  signalValue
+    0   a      50      60      .      55          NaN
+    1   a     100     500      .     250         20.0
+    2   a    1000    3000      .    2000        100.0
+    3   a    4000   10000      .    7000         30.0
+    4   a  100000  110000      .  100000         30.0
+    5   a  200000  230000      .  215000        300.0
     """
     merged_peaks = ref_peaks.copy()
+    merged_peaks[score] = float('nan')
     merged_peaks_it = iter(range(len(merged_peaks)))
     peaks_it = iter(range(len(peaks)))
     for merged_peak, peak, prev_peak in iter_peaks(
