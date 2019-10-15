@@ -3,7 +3,7 @@
 
 This section of the code provide facilities to handle logs in the mIDR project
 """
-
+import logging
 import sys
 from os import path
 
@@ -85,3 +85,4 @@ def plot_classif(x_score, u_values, z_values, lidr, file_name):
     plt.savefig(file_name)
 
 
+LOGGER = logging.getLogger(sys.path.splitext(sys.path.basename(sys.argv[0]))[0])

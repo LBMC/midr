@@ -124,7 +124,6 @@ def main():
 
 
 OPTIONS = parse_args(args=sys.argv[1:])
-LOGGER = logging.getLogger(sys.path.splitext(sys.path.basename(sys.argv[0]))[0])
 
 if __name__ == "__main__":
     main()
