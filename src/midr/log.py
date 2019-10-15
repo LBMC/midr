@@ -85,4 +85,4 @@ def plot_classif(x_score, u_values, z_values, lidr, file_name):
     plt.savefig(file_name)
 
 
-LOGGER = logging.getLogger(sys.path.splitext(sys.path.basename(sys.argv[0]))[0])
+LOGGER = logging.getLogger(path.splitext(path.basename(sys.argv[0]))[0])
