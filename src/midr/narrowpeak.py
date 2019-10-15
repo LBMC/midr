@@ -597,7 +597,7 @@ def best_peak(ref_peak: pd.Series, peaks: pd.DataFrame,
 
 
 def merge_peak(ref_peak: pd.Series, peak: pd.Series,
-                pos_cols: list = narrowpeaks_sort_cols()) -> pd.Series:
+               pos_cols: list = narrowpeaks_sort_cols()) -> pd.Series:
     """
     Return merged peaks between position of ref_peak and everythings else
     from peak
@@ -636,42 +636,61 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
     pd.DataFrame
     :param peaks_it: iterator over row index in the peaks pd.DataFrame
     :yield: (merged_peak, peak - 1, prev_peak) triplet of positions
-    >>> iter_peaks(
-    ... merged_peaks=pd.DataFrame({'chr': 'a', 'start': 100, 'stop': 120,
-    ... 'strand': ".", 'peak': 100, 'score': 20}),
-    ... peaks=pd.DataFrame({'chr': 'a', 'start': 200, 'stop': 220,
-    ... 'strand': ".", 'peak': 140, 'score': 45})
+
+    >>> test_iter = iter_peaks(
+    ... merged_peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 1000, 4000, 100000, 200000],
+    ... 'stop': [500, 3000, 10000, 110000, 230000],
+    ... 'strand': [".", ".", ".", ".", "."],
+    ... 'peak': [250, 2000, 7000, 100000, 215000],
+    ... 'score': [20, 100, 15, 30, 200]}),
+    ... peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'score': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]}),
     ... merged_peaks_it=iter(range(5)),
     ... peaks_it=iter(range(10))
     ... )
+    >>> next(test_iter)
     """
-    merged_peak = None
-    peak = None
+    merged_peak = next(merged_peaks_it)
+    peak = next(peaks_it)
     prev_peak = None
     while True:
         try:
-            if pos_overlap(pos_ref=merged_peaks.iloc[merged_peak, :],
-                           pos=peaks.iloc[peak, :]):
+            print((merged_peak, peak - 1, prev_peak))
+            # if merged_peak before peak
+            if peaks.iloc[peak, 'stop'] < merged_peaks.iloc[
+                merged_peak, 'start'
+            ]:
                 peak = next(peaks_it)
+                prev_peak = None
+            # if merged_peak after peak
+            if merged_peaks.iloc[merged_peak, 'stop'] < peaks.iloc[
+                peak, 'start'
+            ]:
+                merged_peak = next(merged_peaks_it)
+                prev_peak = None
+            if pos_overlap(
+                    pos_ref=merged_peaks.iloc[merged_peak, :],
+                    pos=peaks.iloc[peak, :]
+            ):
                 if prev_peak is None:
                     prev_peak = peak
+                peak = next(peaks_it)
             else:
-                # if merged_peak before peak
-                if peaks.iloc[peak, 'stop'] < merged_peaks.iloc[
-                    merged_peak, 'start'
-                ]:
-                    merged_peak = next(merged_peaks_it)
-                    prev_peak = None
-                # if merged_peak after peak
-                if merged_peaks.iloc[merged_peak, 'stop'] < peaks.iloc[
-                    peak, 'start'
-                ]:
-                    peak = next(peaks_it)
-                    prev_peak = None
                 if merged_peak is not None:
                     if peak is not None:
                         if prev_peak is not None:
                             yield (merged_peak, peak - 1, prev_peak)
+            print((merged_peak, peak - 1, prev_peak))
         except StopIteration:
             break  # Iterator exhausted: stop the loop
 
