@@ -578,7 +578,7 @@ def best_peak(ref_peak: pd.Series, peaks: pd.DataFrame,
     equality return the one with the highest score
     :param ref_peak: the reference peak (line of a narrowpeak file)
     :param peaks: a list of peaks (lines of a narrowpeak file)
-    :param: start_pos: int starting position of peaks
+    :param start_pos: int starting position of peaks
     :return: int index of the closest peak in peaks
 
     >>> best_peak(ref_peak=pd.Series({'peak': 100, 'score': 20}),
@@ -587,7 +587,13 @@ def best_peak(ref_peak: pd.Series, peaks: pd.DataFrame,
     >>> best_peak(ref_peak=pd.Series({'peak': 100, 'score': 20}),
     ... peaks=pd.DataFrame({'peak': [90, 105, 105], 'score': [5, 20, 10]}))
     1
+    >>> test_peak = pd.DataFrame({'peak': [90, 105, 105, 90, 105, 105],
+    ... 'score': [5, 20, 10, 5, 20, 10]})
+    >>> best_peak(ref_peak=pd.Series({'peak': 100, 'score': 20}),
+    ... peaks=test_peak.iloc[3:6, :])
+    1
     """
+    peaks = peaks.reset_index()
     pos = abs(peaks.peak - ref_peak.peak).idxmin()
     if peaks.peak.where(peaks.iloc[pos].peak == peaks.peak).size == 1:
         return pos + start_pos
@@ -667,7 +673,7 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
     >>> next(test_iter)
     (3, 6, 6)
     >>> next(test_iter)
-    (4, 9 ,7)
+    (4, 9, 7)
     >>> try:
     ...     next(test_iter)
     ... except StopIteration:
@@ -699,6 +705,7 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
                     prev_peak = peak
                 peak = next(peaks_it)
         except StopIteration:
+            yield ((merged_peak, peak, prev_peak))
             break  # Iterator exhausted: stop the loop
         else:
             if not pos_overlap(
@@ -722,6 +729,26 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     :param score: str with the name of the score column
     :param pos_cols: list list of columns name for position information
     :return: pd.DataFrame of the merged peaks
+
+    >>> merge_peaks(
+    ... ref_peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 1000, 4000, 100000, 200000],
+    ... 'stop': [500, 3000, 10000, 110000, 230000],
+    ... 'strand': [".", ".", ".", ".", "."],
+    ... 'peak': [250, 2000, 7000, 100000, 215000],
+    ... 'score': [20, 100, 15, 30, 200]}),
+    ... peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'score': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
+    ... )
     """
     merged_peaks = ref_peaks.copy()
     merged_peaks_it = iter(range(len(merged_peaks)))
@@ -731,13 +758,15 @@ def merge_peaks(ref_peaks: pd.DataFrame,
             peaks=peaks,
             merged_peaks_it=merged_peaks_it,
             peaks_it=peaks_it):
-        merged_peaks.iloc[merged_peak, :] = merged_peak(
-            ref_peaks=merged_peaks.iloc[merged_peak, :],
-            peak=best_peak(
-                peak_ref=merged_peaks.iloc[merged_peak, :],
-                peaks=peaks.iloc[prev_peak:peak, :],
+        if peak != prev_peak:
+            peak = best_peak(
+                ref_peak=merged_peaks.iloc[merged_peak],
+                peaks=peaks.iloc[prev_peak:peak],
                 start_pos=prev_peak
-            ),
+            )
+        merged_peaks.iloc[merged_peak, :] = merge_peak(
+            ref_peak=merged_peaks.iloc[merged_peak],
+            peak=peaks.iloc[peak],
             pos_cols=pos_cols
         )
     return merged_peaks
