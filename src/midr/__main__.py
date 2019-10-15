@@ -111,9 +111,12 @@ def main():
             narrowpeak.writefiles(
                 bed_files=OPTIONS.output,
                 file_names=OPTIONS.file_merged,
-                idr=narrowpeak.narrowpeaks2array(
-                    np_list=bed_files,
-                    score_col=OPTIONS.score)
+                idr=idr.pseudo_likelihood(
+                    x_score=narrowpeak.narrowpeaks2array(
+                        np_list=bed_files,
+                        score_col=OPTIONS.score
+                    )
+                )
             )
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")
