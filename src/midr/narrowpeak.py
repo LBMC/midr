@@ -6,20 +6,12 @@ This section of the project provides facilitites to handle NarrowPeaks files
 and compute IDR on the choosen value in the NarrowPeaks columns
 """
 
-import sys
-from os import path, makedirs, access, R_OK, W_OK
+from os import path, access, R_OK
 from pathlib import PurePath
-from typing import List, Any, Union
+from typing import List
 
 import numpy as np
 import pandas as pd
-
-import logging
-
-from pandas import DataFrame
-from pandas.io.parsers import TextFileReader
-
-import log
 
 
 def narrowpeak_cols() -> list:
@@ -126,22 +118,23 @@ def readfiles(file_names: list,
         bed_paths.append(PurePath(file_name))
     return readbeds(bed_paths=bed_paths, bed_cols=file_cols)
 
-def writefile(bed_files: list,
-              file_mames: list,
+
+def writefiles(bed_files: list,
+              file_names: list,
               idr: np.array,
               outdir: str = "results/"):
     """
     Write output of IDR computation
     :param bed_files: list of bed files (pd.DataFrame)
-    :param file_mames: list of files names (str)
+    :param file_names: list of files names (str)
     :param idr: np.array with local IDR score (columns correspond to bed files)
     :param outdir: output directory
     :return: nothing
     """
     idr_col = 0
     for bed in bed_files:
-        output_name = PurePath(output).joinpath(
-            "idr_" + str(file_name[idr_col])
+        output_name = PurePath(outdir).joinpath(
+            "idr_" + str(file_names[idr_col])
         )
         bed.assign(idr=idr[idr_col]).to_csv(
             output_name, sep='\t',
@@ -469,7 +462,6 @@ def narrowpeaks2array(np_list: list,
         scores.append(np.array(np_file[score_col].to_numpy()))
     return np.stack(scores, axis=-1)
 
-LOGGER = logging.getLogger(path.splitext(path.basename(sys.argv[0]))[0])
 
 if __name__ == "__main__":
     import doctest
