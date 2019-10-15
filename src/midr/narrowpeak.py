@@ -749,6 +749,12 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 220000],
     ... 'score': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
     ... )
+      chr   start    stop strand    peak  score
+    0   a     100     500      .     250     20
+    1   a    1000    3000      .    2000    100
+    2   a    4000   10000      .    7000     30
+    3   a  100000  110000      .  100000     30
+    4   a  200000  230000      .  215000    300
     """
     merged_peaks = ref_peaks.copy()
     merged_peaks_it = iter(range(len(merged_peaks)))
