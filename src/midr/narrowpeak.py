@@ -447,7 +447,8 @@ def narrowpeaks_sort_cols() -> list:
     return ['chr', 'start', 'stop', 'strand', 'peak']
 
 
-def readbed(bed_path: PurePath, bed_cols: list = narrowpeak_cols()) -> pd.DataFrame:
+def readbed(bed_path: PurePath,
+            bed_cols: list = narrowpeak_cols()) -> pd.DataFrame:
     """
     Read a bed file from a PurePath object
     :type bed_cols: list of str
@@ -472,6 +473,20 @@ def sort_bed(bed_file: pd.DataFrame,
     :param bed_file: bed file loaded as a pd.DataFrame
     :param sort_cols: list of columns to sort the pd.DataFrame on
     :return: None the array is sorted as is
+    >>> sort_bed(bed_file=pd.DataFrame({
+    ... 'chr': ['b','b', 'a', 'a', 'a', 'a'],
+    ... 'start': [100000, 20, 10, 100, 1000, 5],
+    ... 'stop': [100100, 40, 15, 150, 2000, 8],
+    ... 'strand': ['.', '.', '.', '.', '.', '.'],
+    ... 'peak': [100050, 30, 12, 125, 1500, 6]
+    ... }))
+      chr   start    stop strand    peak
+    5   a       5       8      .       6
+    2   a      10      15      .      12
+    3   a     100     150      .     125
+    4   a    1000    2000      .    1500
+    1   b      20      40      .      30
+    0   b  100000  100100      .  100050
     """
     return bed_file.sort_values(by=sort_cols)
 
@@ -519,20 +534,25 @@ def pos_overlap(pos_ref: pd.Series, pos: pd.Series) -> bool:
     :param pos bed line in the considered bed file
     :return: bool, True if pos overlap and false otherwise
 
-    >>> pos_overlap(pos_ref = dict(chr='a', start=100, stop=120, strand="."),
-    ... pos = dict(chr='a', start=100, stop=120, strand="."))
+    >>> pos_overlap(pos_ref = pd.Series({'chr': 'a', 'start': 100, 'stop': 120,
+    ... 'strand': "."}),
+    ... pos = pd.Series({'chr': 'a', 'start': 100, 'stop': 120, 'strand': "."}))
     True
-    >>> pos_overlap(pos_ref = dict(chr='a', start=100, stop=120, strand="."),
-    ... pos = dict(chr='a', start=110, stop=130, strand="."))
+    >>> pos_overlap(pos_ref = pd.Series({'chr': 'a', 'start': 100, 'stop':
+    ... 120, 'strand': "."}),
+    ... pos = pd.Series({'chr': 'a', 'start': 110, 'stop': 130, 'strand': "."}))
     True
-    >>> pos_overlap(pos_ref = dict(chr='a', start=100, stop=120, strand="."),
-    ... pos = dict(chr='b', start=100, stop=120, strand="."))
+    >>> pos_overlap(pos_ref = pd.Series({'chr': 'a', 'start': 100, 'stop':
+    ... 120, 'strand': "."}),
+    ... pos = pd.Series({'chr': 'b', 'start': 100, 'stop': 120, 'strand': "."}))
     False
-    >>> pos_overlap(pos_ref = dict(chr='a', start=100, stop=120, strand="."),
-    ... pos = dict(chr='b', start=130, stop=150, strand="."))
+    >>> pos_overlap(pos_ref = pd.Series({'chr': 'a', 'start': 100, 'stop':
+    ... 120, 'strand': "."}),
+    ... pos = pd.Series({'chr': 'b', 'start': 130, 'stop': 150, 'strand': "."}))
     False
-    >>> pos_overlap(pos_ref = dict(chr='a', start=130, stop=150, strand="."),
-    ... pos = dict(chr='b', start=100, stop=120, strand="."))
+    >>> pos_overlap(pos_ref = pd.Series({'chr': 'a', 'start': 130, 'stop':
+    ... 150, 'strand': "."}),
+    ... pos = pd.Series({'chr': 'b', 'start': 100, 'stop': 120, 'strand': "."}))
     False
     """
     for pos_col in ['chr', 'strand']:
@@ -550,26 +570,143 @@ def pos_overlap(pos_ref: pd.Series, pos: pd.Series) -> bool:
         return False
     return True
 
-def best_peak(peak_ref: pd.Series, peaks: pd.DataFrame) -> int:
+
+def best_peak(ref_peak: pd.Series, peaks: pd.DataFrame,
+              start_pos: int = 0) -> int:
     """
     Return the index of the closest peak to peak_ref in peaks in case of
     equality return the one with the highest score
-    :param peak_ref: the reference peak (line of a narrowpeak file)
+    :param ref_peak: the reference peak (line of a narrowpeak file)
     :param peaks: a list of peaks (lines of a narrowpeak file)
+    :param: start_pos: int starting position of peaks
     :return: int index of the closest peak in peaks
 
-    >>> best_peak(peak_ref=pd.Series({'peak': 100, 'score': 20}),
+    >>> best_peak(ref_peak=pd.Series({'peak': 100, 'score': 20}),
     ... peaks=pd.DataFrame({'peak': [90, 110, 105], 'score': [5, 10, 20]}))
     2
-    >>> best_peak(peak_ref=pd.Series({'peak': 100, 'score': 20}),
+    >>> best_peak(ref_peak=pd.Series({'peak': 100, 'score': 20}),
     ... peaks=pd.DataFrame({'peak': [90, 105, 105], 'score': [5, 20, 10]}))
     1
     """
-    pos = abs(peaks.peak - peak_ref.peak).idxmin()
+    pos = abs(peaks.peak - ref_peak.peak).idxmin()
     if peaks.peak.where(peaks.iloc[pos].peak == peaks.peak).size == 1:
-        return pos
+        return pos + start_pos
     else:
-        return peaks.score.where(peaks.iloc[pos].peak == peaks.peak).idxmax()
+        return peaks.score.where(peaks.iloc[pos].peak == peaks.peak).idxmax() \
+               + start_pos
+
+
+def merge_peak(ref_peak: pd.Series, peak: pd.Series,
+                pos_cols: list = narrowpeaks_sort_cols()) -> pd.Series:
+    """
+    Return merged peaks between position of ref_peak and everythings else
+    from peak
+    :param ref_peak: line of ref_peaks narrowpeak
+    :param peak: line of peak narrowpeak
+    :param pos_cols: list list of columns name for position information
+    :return: line of narrowpeak
+
+    >>> merge_peak(
+    ... ref_peak=pd.Series({'chr': 'a', 'start': 100, 'stop': 120,
+    ... 'strand': ".", 'peak': 100, 'score': 20}),
+    ... peak=pd.Series({'chr': 'a', 'start': 200, 'stop': 220,
+    ... 'strand': ".", 'peak': 140, 'score': 45})
+    ... )
+    chr         a
+    start     100
+    stop      120
+    strand      .
+    peak      100
+    score      45
+    dtype: object
+    """
+    merged_peak = peak.copy()
+    for pos_col in pos_cols:
+        merged_peak[pos_col] = ref_peak[pos_col]
+    return merged_peak
+
+
+def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
+               peaks_it) -> (int, int):
+    """
+    Move iterator over ref_peaks and peaks for the merge_peaks() function
+    :param merged_peaks: pd.DataFrame of the reference peaks
+    :param peaks: pd.DataFrame of the peaks we want to merge
+    :param merged_peaks_it: iterator over row index in the ref_peaks
+    pd.DataFrame
+    :param peaks_it: iterator over row index in the peaks pd.DataFrame
+    :yield: (merged_peak, peak - 1, prev_peak) triplet of positions
+    >>> iter_peaks(
+    ... merged_peaks=pd.DataFrame({'chr': 'a', 'start': 100, 'stop': 120,
+    ... 'strand': ".", 'peak': 100, 'score': 20}),
+    ... peaks=pd.DataFrame({'chr': 'a', 'start': 200, 'stop': 220,
+    ... 'strand': ".", 'peak': 140, 'score': 45})
+    ... merged_peaks_it=iter(range(5)),
+    ... peaks_it=iter(range(10))
+    ... )
+    """
+    merged_peak = None
+    peak = None
+    prev_peak = None
+    while True:
+        try:
+            if pos_overlap(pos_ref=merged_peaks.iloc[merged_peak, :],
+                           pos=peaks.iloc[peak, :]):
+                peak = next(peaks_it)
+                if prev_peak is None:
+                    prev_peak = peak
+            else:
+                # if merged_peak before peak
+                if peaks.iloc[peak, 'stop'] < merged_peaks.iloc[
+                    merged_peak, 'start'
+                ]:
+                    merged_peak = next(merged_peaks_it)
+                    prev_peak = None
+                # if merged_peak after peak
+                if merged_peaks.iloc[merged_peak, 'stop'] < peaks.iloc[
+                    peak, 'start'
+                ]:
+                    peak = next(peaks_it)
+                    prev_peak = None
+                if merged_peak is not None:
+                    if peak is not None:
+                        if prev_peak is not None:
+                            yield (merged_peak, peak - 1, prev_peak)
+        except StopIteration:
+            break  # Iterator exhausted: stop the loop
+
+
+def merge_peaks(ref_peaks: pd.DataFrame,
+                peaks: pd.DataFrame,
+                score: str = narrowpeaks_score(),
+                pos_cols: list = narrowpeaks_sort_cols()) -> pd.DataFrame:
+    """
+    Copy peaks values from peaks into the corresponding position in merged_peaks
+    Peaks not found in peaks have a score of nan
+    :param ref_peaks: pd.DataFrame which is a copy of ref_peaks
+    :param peaks: pd.DataFrame of the peaks we want to merge
+    :param score: str with the name of the score column
+    :param pos_cols: list list of columns name for position information
+    :return: pd.DataFrame of the merged peaks
+    """
+    merged_peaks = ref_peaks.copy()
+    merged_peaks_it = iter(range(len(merged_peaks)))
+    peaks_it = iter(range(len(peaks)))
+    for merged_peak, peak, prev_peak in iter_peaks(
+            merged_peaks=merged_peaks,
+            peaks=peaks,
+            merged_peaks_it=merged_peaks_it,
+            peaks_it=peaks_it):
+        merged_peaks.iloc[merged_peak, :] = merged_peak(
+            ref_peaks=merged_peaks.iloc[merged_peak, :],
+            peak=best_peak(
+                peak_ref=merged_peaks.iloc[merged_peak, :],
+                peaks=peaks.iloc[prev_peak:peak, :],
+                start_pos=prev_peak
+            ),
+            pos_cols=pos_cols
+        )
+    return merged_peaks
 
 
 def narrowpeaks2array(np_list: list,
@@ -603,4 +740,5 @@ LOGGER = logging.getLogger(path.splitext(path.basename(sys.argv[0]))[0])
 
 if __name__ == "__main__":
     import doctest
+
     doctest.testmod()
