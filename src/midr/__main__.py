@@ -11,15 +11,21 @@ Given a list of peak calls in NarrowPeaks format and the corresponding peak
 call for the merged replicate. This tool computes and appends a IDR column to
 NarrowPeaks files.
 """
-
+import logging
 import sys
 import argparse
+
+import narrowpeak
+import log
+import idr
+
 
 class CustomFormatter(argparse.RawDescriptionHelpFormatter,
                       argparse.ArgumentDefaultsHelpFormatter):
     """
     helper class to make ArgumentParser
     """
+
 
 def parse_args(args):
     """Parse arguments."""
@@ -75,10 +81,12 @@ def parse_args(args):
                      help="log to console")
     return parser.parse_args(args)
 
-class CleanExit():
+
+class CleanExit:
     """
     Class to wrap code to have cleaner exits
     """
+
     def __enter__(self):
         return self
 
@@ -96,9 +104,17 @@ def main():
     """
     with CleanExit():
         try:
-            narrowpeak.setup_logging(narrowpeak.OPTIONS)
-            narrowpeak.NarrowPeaks(narrowpeak.OPTIONS,
-                                   idr_func=pseudo_likelihood)
+            log.setup_logging(OPTIONS)
+            bed_files = narrowpeak.readfiles(
+                file_names=[OPTIONS.file_merged] + OPTIONS.files
+            )
+            narrowpeak.writefiles(
+                bed_files=OPTIONS.output,
+                file_names=OPTIONS.file_merged,
+                idr=narrowpeak.narrowpeaks2array(
+                    np_list=bed_files,
+                    score_col=OPTIONS.score)
+            )
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")
             sys.exit(0)
@@ -106,7 +122,9 @@ def main():
             print(err)
             sys.exit(0)
 
+
 OPTIONS = parse_args(args=sys.argv[1:])
+LOGGER = logging.getLogger(sys.path.splitext(sys.path.basename(sys.argv[0]))[0])
 
 if __name__ == "__main__":
     main()
