@@ -439,9 +439,9 @@ def merge_beds(bed_files: list, ref_pos=0,
                 )
             )
             nan_pos.append(
-                merged_files[-1].index[
-                    merged_files[-1][ score_col].apply( np.isnan)
-                ]
+                list(merged_files[-1].index[
+                    merged_files[-1][ score_col].apply(np.isnan)
+                ].to_numpy())
             )
     nan_pos = set(nan_pos)
     for merged in merged_files:
