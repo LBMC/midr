@@ -13,7 +13,6 @@ call for the merged replicate. This tool computes and appends a IDR column to
 NarrowPeaks files.
 """
 
-import sys
 import math
 from copy import deepcopy
 from scipy.stats import rankdata
@@ -24,7 +23,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from pynverse import inversefunc
-import narrowpeak
+import log
 
 
 def cov_matrix(m_sample, theta):
@@ -205,9 +204,9 @@ def h_function(z_values, m_sample, theta):
                                            int(m_sample),
                                            cov=cov)
     except ValueError as err:
-        narrowpeak.LOGGER.exception("%s", "error: h_function: " + str(err))
-        narrowpeak.LOGGER.exception("%s", str(cov))
-        narrowpeak.LOGGER.exception("%s", str(theta))
+        log.LOGGER.exception("%s", "error: h_function: " + str(err))
+        log.LOGGER.exception("%s", str(cov))
+        log.LOGGER.exception("%s", str(theta))
     return pd.Series(x_values)
 
 
@@ -326,9 +325,9 @@ def loglikelihood(z_values, k_state, theta):
                                          math.log(h1_x[i]))
         return logl
     except ValueError as err:
-        narrowpeak.LOGGER.exception("%s", "error: logLikelihood: " + str(err))
-        narrowpeak.LOGGER.exception("%s", str(h1_x[i]))
-        narrowpeak.LOGGER.exception("%s", str(theta))
+        log.LOGGER.exception("%s", "error: logLikelihood: " + str(err))
+        log.LOGGER.exception("%s", str(h1_x[i]))
+        log.LOGGER.exception("%s", str(theta))
         quit(-1)
 
 
@@ -346,7 +345,7 @@ def delta(theta_t0, theta_t1, threshold, logl):
 
 
 def em_pseudo_data(z_values,
-                   log,
+                   logger,
                    theta,
                    k_state,
                    threshold=0.001):
@@ -376,17 +375,17 @@ def em_pseudo_data(z_values,
                                 k_state=k_state,
                                 theta=theta_t1)
         if logl_t1 - logl_t0 < 0.0:
-            narrowpeak.LOGGER.debug("%s",
+            log.LOGGER.debug("%s",
                                     "warning: EM decreassing logLikelihood \
                                     rho: " +
                                     str(logl_t1 - logl_t0))
-            narrowpeak.LOGGER.debug("%s", str(theta_t1))
-            return (theta_t0, k_state, log)
-        log = narrowpeak.add_log(log=log,
+            log.LOGGER.debug("%s", str(theta_t1))
+            return (theta_t0, k_state, logger)
+        logger = log.add_log(log=logger,
                                  theta=theta_t1,
                                  logl=logl_t1,
                                  pseudo=False)
-    return (theta_t1, k_state, log)
+    return (theta_t1, k_state, logger)
 
 
 def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
@@ -399,7 +398,7 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
     u_values = [0.0] * int(x_score.shape[0])
     z_values = [0.0] * int(x_score.shape[0])
     lidr = [0.0] * int(x_score.shape[0])
-    log = {'logl': list(),
+    logger = {'logl': list(),
            'pi': list(),
            'mu': list(),
            'sigma': list(),
@@ -412,8 +411,8 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
         theta_t0 = deepcopy(theta_t1)
         z_values = compute_z_from_u(u_values=u_values,
                                     theta=theta_t1)
-        (theta_t1, k_state, log) = em_pseudo_data(z_values=z_values,
-                                                  log=log,
+        (theta_t1, k_state, logger) = em_pseudo_data(z_values=z_values,
+                                                  log=logger,
                                                   k_state=k_state,
                                                   theta=theta_t1,
                                                   threshold=threshold)
@@ -423,17 +422,17 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
         logl_t1 = loglikelihood(z_values=z_values,
                                 k_state=k_state,
                                 theta=theta_t1)
-        log = narrowpeak.add_log(log=log,
+        logger = log.add_log(log=logger,
                                  theta=theta_t1,
                                  logl=logl_t1,
                                  pseudo=True)
-        narrowpeak.plot_log(log, str(log_name) + "_log.pdf")
-        narrowpeak.plot_classif(x_score,
+        log.plot_log(log, str(log_name) + "_log.pdf")
+        log.plot_classif(x_score,
                                 u_values,
                                 z_values,
                                 lidr,
                                 str(log_name) + "_classif.pdf")
-        narrowpeak.LOGGER.debug("%s", str(theta_t1))
+        log.LOGGER.debug("%s", str(theta_t1))
     return (theta_t1, lidr)
 
 #  THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}

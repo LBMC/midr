@@ -128,9 +128,9 @@ def readfiles(file_names: list,
 
 
 def writefiles(bed_files: list,
-              file_names: list,
-              idr: np.array,
-              outdir: str = "results/"):
+               file_names: list,
+               idr: np.array,
+               outdir: str = "results/"):
     """
     Write output of IDR computation
     :param bed_files: list of bed files (pd.DataFrame)
@@ -205,6 +205,7 @@ def best_peak(ref_peak: pd.Series, peaks: pd.DataFrame,
     :param ref_peak: the reference peak (line of a narrowpeak file)
     :param peaks: a list of peaks (lines of a narrowpeak file)
     :param start_pos: int starting position of peaks
+    :param score_col: str name of the score column
     :return: int index of the closest peak in peaks
 
     >>> best_peak(ref_peak=pd.Series({'peak': 100, 'signalValue': 20}),
@@ -296,15 +297,15 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
     ... peaks_it=iter(range(10))
     ... )
     >>> next(test_iter)
-    (0, 1, 0)
+    (0, 2, 0)
     >>> next(test_iter)
-    (1, 2, 2)
+    (1, 3, 2)
     >>> next(test_iter)
-    (2, 5, 3)
+    (2, 6, 3)
     >>> next(test_iter)
-    (3, 6, 6)
+    (3, 7, 6)
     >>> next(test_iter)
-    (4, 9, 7)
+    (4, 10, 7)
     >>> try:
     ...     next(test_iter)
     ... except StopIteration:
@@ -318,14 +319,12 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
         try:
             # if merged_peak before peak
             if peaks.iloc[peak]['stop'] < merged_peaks.iloc[
-                merged_peak]['start'
-            ]:
+                    merged_peak]['start']:
                 peak = next(peaks_it)
                 prev_peak = None
             # if merged_peak after peak
             if merged_peaks.iloc[merged_peak]['stop'] < peaks.iloc[
-                peak]['start'
-            ]:
+                    peak]['start']:
                 merged_peak = next(merged_peaks_it)
                 prev_peak = None
             if pos_overlap(
@@ -385,7 +384,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     0   a      50      60      .      55          NaN
     1   a     100     500      .     250         20.0
     2   a    1000    3000      .    2000        100.0
-    3   a    4000   10000      .    7000         30.0
+    3   a    4000   10000      .    7000         14.0
     4   a  100000  110000      .  100000         30.0
     5   a  200000  230000      .  215000        300.0
     """
@@ -438,15 +437,16 @@ def merge_beds(bed_files: list, ref_pos=0,
                     pos_cols=pos_cols
                 )
             )
-            nan_pos.append(
-                list(merged_files[-1].index[
-                    merged_files[-1][ score_col].apply(np.isnan)
-                ].to_numpy())
+            nan_pos = nan_pos + list(
+                merged_files[-1].index[
+                    merged_files[-1][score_col].apply(np.isnan)
+                ].to_numpy()
             )
     nan_pos = set(nan_pos)
     for merged in merged_files:
-        merged.dop(nan_pos)
+        merged.drop(nan_pos)
     return merged_files
+
 
 def narrowpeaks2array(np_list: list,
                       score_col: str = narrowpeaks_score()) -> np.array:
@@ -474,6 +474,7 @@ def narrowpeaks2array(np_list: list,
         scores.append(np.array(np_file[score_col].to_numpy()))
     return np.stack(scores, axis=-1)
 
+
 def process_bed(file_names: list,
                 outdir: str,
                 idr_func: Callable[[np.array], np.array],
@@ -499,7 +500,7 @@ def process_bed(file_names: list,
     local_idr = idr_func(
        narrowpeaks2array(
            np_list=bed_files,
-           score_col=score_col
+           score_col=score_cols
        )
     )
     writefiles(
