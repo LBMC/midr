@@ -9,7 +9,7 @@ and compute IDR on the choosen value in the NarrowPeaks columns
 from os import path, access, R_OK
 from pathlib import PurePath
 from typing import List
-
+from typing import Callable
 import numpy as np
 import pandas as pd
 
@@ -106,17 +106,25 @@ def readbeds(bed_paths: list,
 
 
 def readfiles(file_names: list,
-              file_cols: list = narrowpeak_cols()) -> list:
+              file_cols: list = narrowpeak_cols(),
+              score_cols: str = narrowpeaks_score(),
+              pos_cols: list = narrowpeaks_sort_cols()) -> list:
     """
     Reads a list of bed filenames and return a list of pd.DataFrame
     :param file_names: list of bed files to read
     :param file_cols: list of bed file columns
+    :param score_cols: column name of the score to use
+    :param pos_cols: list of position column name to sort and merge on
     :return: list[pd.DataFrame] containing the file csv columns
     """
     bed_paths = list()
     for file_name in file_names:
         bed_paths.append(PurePath(file_name))
-    return readbeds(bed_paths=bed_paths, bed_cols=file_cols)
+    return merge_beds(
+        bed_files=readbeds(bed_paths=bed_paths, bed_cols=file_cols),
+        score_col=score_cols,
+        pos_cols=pos_cols
+    )
 
 
 def writefiles(bed_files: list,
@@ -213,6 +221,8 @@ def best_peak(ref_peak: pd.Series, peaks: pd.DataFrame,
     ... peaks=test_peak.iloc[3:6, :])
     1
     """
+    if peaks.shape[0] == 1:
+        return start_pos
     peaks = peaks.reset_index()
     pos = abs(peaks.peak - ref_peak.peak).idxmin()
     if peaks.peak.where(peaks.iloc[pos].peak == peaks.peak).size == 1:
@@ -326,14 +336,16 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
                     prev_peak = peak
                 peak = next(peaks_it)
         except StopIteration:
-            yield ((merged_peak, peak, prev_peak))
+            if prev_peak is None:
+                prev_peak = peak
+            yield ((merged_peak, peak + 1, prev_peak))
             break  # Iterator exhausted: stop the loop
         else:
             if not pos_overlap(
                     pos_ref=merged_peaks.iloc[merged_peak],
                     pos=peaks.iloc[peak]
             ) and prev_peak is not None:
-                yield ((merged_peak, peak - 1, prev_peak))
+                yield ((merged_peak, peak, prev_peak))
                 prev_peak = None
 
 
@@ -386,7 +398,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
             peaks=peaks,
             merged_peaks_it=merged_peaks_it,
             peaks_it=peaks_it):
-        if peak != prev_peak:
+        if prev_peak != peak:
             peak = best_peak(
                 ref_peak=merged_peaks.iloc[merged_peak],
                 peaks=peaks.iloc[prev_peak:peak],
@@ -461,6 +473,41 @@ def narrowpeaks2array(np_list: list,
     for np_file in np_list:
         scores.append(np.array(np_file[score_col].to_numpy()))
     return np.stack(scores, axis=-1)
+
+def process_bed(file_names: list,
+                outdir: str,
+                idr_func: Callable[[np.array], np.array],
+                file_cols: list = narrowpeak_cols(),
+                score_cols: str = narrowpeaks_score(),
+                pos_cols: list = narrowpeaks_sort_cols()):
+    """
+    Process a list of bed files names with the first names the merged bed files
+    :param file_names: list of files path
+    :param outdir: output directory
+    :param idr_func: idr function to apply
+    :param file_cols: list of bed file columns
+    :param score_cols: column name of the score to use
+    :param pos_cols: list of position column name to sort and merge on
+    :return: nothing
+    """
+    bed_files = readfiles(
+        file_names=file_names,
+        file_cols=file_cols,
+        score_cols=score_cols,
+        pos_cols=pos_cols,
+    )
+    local_idr = idr_func(
+       narrowpeaks2array(
+           np_list=bed_files,
+           score_col=score_col
+       )
+    )
+    writefiles(
+        bed_files=bed_files,
+        file_names=file_names,
+        idr=local_idr,
+        outdir=outdir
+    )
 
 
 if __name__ == "__main__":

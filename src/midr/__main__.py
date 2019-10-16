@@ -105,18 +105,10 @@ def main():
     with CleanExit():
         try:
             log.setup_logging(OPTIONS)
-            bed_files = narrowpeak.readfiles(
-                file_names=[OPTIONS.file_merged] + OPTIONS.files
-            )
-            narrowpeak.writefiles(
-                bed_files=OPTIONS.output,
-                file_names=OPTIONS.file_merged,
-                idr=idr.pseudo_likelihood(
-                    x_score=narrowpeak.narrowpeaks2array(
-                        np_list=bed_files,
-                        score_col=OPTIONS.score
-                    )
-                )
+            narrowpeak.process_bed(
+                file_names=[OPTIONS.merged] + OPTIONS.files,
+                outdir=OPTIONS.output,
+                idr_func=idr.pseudo_likelihood
             )
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")
