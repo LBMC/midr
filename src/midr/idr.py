@@ -360,31 +360,45 @@ def em_pseudo_data(z_values,
         logl_t0 = logl_t1
         del theta_t0
         theta_t0 = deepcopy(theta_t1)
-        k_state = e_step_k(z_values=z_values,
-                           theta=theta_t1)
-        theta_t1['pi'] = m_step_pi(k_state=k_state)
-        theta_t1['mu'] = m_step_mu(z_values=z_values,
-                                   k_state=k_state)
-        theta_t1['sigma'] = m_step_sigma(z_values=z_values,
-                                         k_state=k_state,
-                                         theta=theta_t1)
-        theta_t1['rho'] = m_step_rho(z_values=z_values,
-                                     k_state=k_state,
-                                     theta=theta_t1)
-        logl_t1 = loglikelihood(z_values=z_values,
-                                k_state=k_state,
-                                theta=theta_t1)
+        k_state = e_step_k(
+            z_values=z_values,
+            theta=theta_t1
+        )
+        theta_t1['pi'] = m_step_pi(
+            k_state=k_state
+        )
+        theta_t1['mu'] = m_step_mu(
+            z_values=z_values,
+            k_state=k_state
+        )
+        theta_t1['sigma'] = m_step_sigma(
+            z_values=z_values,
+            k_state=k_state,
+            theta=theta_t1
+        )
+        theta_t1['rho'] = m_step_rho(
+            z_values=z_values,
+            k_state=k_state,
+            theta=theta_t1
+        )
+        logl_t1 = loglikelihood(
+            z_values=z_values,
+            k_state=k_state,
+            theta=theta_t1
+        )
         if logl_t1 - logl_t0 < 0.0:
             log.LOGGER.debug("%s",
-                                    "warning: EM decreassing logLikelihood \
-                                    rho: " +
-                                    str(logl_t1 - logl_t0))
+                             "warning: EM decreassing logLikelihood \
+                             rho: " +
+                             str(logl_t1 - logl_t0))
             log.LOGGER.debug("%s", str(theta_t1))
             return (theta_t0, k_state, logger)
-        logger = log.add_log(log=logger,
-                                 theta=theta_t1,
-                                 logl=logl_t1,
-                                 pseudo=False)
+        logger = log.add_log(
+            log=logger,
+            theta=theta_t1,
+            logl=logl_t1,
+            pseudo=False
+        )
     return (theta_t1, k_state, logger)
 
 
@@ -411,21 +425,29 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
         theta_t0 = deepcopy(theta_t1)
         z_values = compute_z_from_u(u_values=u_values,
                                     theta=theta_t1)
-        (theta_t1, k_state, logger) = em_pseudo_data(z_values=z_values,
-                                                  log=logger,
-                                                  k_state=k_state,
-                                                  theta=theta_t1,
-                                                  threshold=threshold)
-        lidr = local_idr(z_values=z_values,
-                         lidr=lidr,
-                         theta=theta_t1)
-        logl_t1 = loglikelihood(z_values=z_values,
-                                k_state=k_state,
-                                theta=theta_t1)
-        logger = log.add_log(log=logger,
-                                 theta=theta_t1,
-                                 logl=logl_t1,
-                                 pseudo=True)
+        (theta_t1, k_state, logger) = em_pseudo_data(
+            z_values=z_values,
+            logger=logger,
+            k_state=k_state,
+            theta=theta_t1,
+            threshold=threshold
+        )
+        lidr = local_idr(
+            z_values=z_values,
+            lidr=lidr,
+            theta=theta_t1
+        )
+        logl_t1 = loglikelihood(
+            z_values=z_values,
+            k_state=k_state,
+            theta=theta_t1
+        )
+        logger = log.add_log(
+            log=logger,
+            theta=theta_t1,
+            logl=logl_t1,
+            pseudo=True
+        )
         log.plot_log(log, str(log_name) + "_log.pdf")
         log.plot_classif(x_score,
                                 u_values,
