@@ -111,6 +111,7 @@ def readfiles(file_names: list,
               pos_cols: list = narrowpeaks_sort_cols()) -> list:
     """
     Reads a list of bed filenames and return a list of pd.DataFrame
+    :rtype: list[pd.DataFrame]
     :param file_names: list of bed files to read
     :param file_cols: list of bed file columns
     :param score_cols: column name of the score to use
@@ -443,8 +444,8 @@ def merge_beds(bed_files: list, ref_pos=0,
                 ].to_numpy()
             )
     nan_pos = set(nan_pos)
-    for merged in merged_files:
-        merged.drop(nan_pos)
+    for merged in range(len(merged_files)):
+        merged_files[merged] = merged_files[merged].drop(nan_pos)
     return merged_files
 
 
@@ -472,7 +473,8 @@ def narrowpeaks2array(np_list: list,
     np_file: pd.DataFrame
     for np_file in np_list:
         scores.append(np.array(np_file[score_col].to_numpy()))
-    return np.stack(scores, axis=-1)
+    scores = np.stack(scores, axis=-1)
+    return scores
 
 
 def process_bed(file_names: list,
