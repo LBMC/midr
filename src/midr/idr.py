@@ -197,17 +197,17 @@ def h_function(z_values, m_sample, theta):
     """
     compute the pdf of h0 or h1
     """
+    cov = cov_matrix(m_sample=int(m_sample), theta=theta)
     try:
-        cov = cov_matrix(m_sample=int(m_sample), theta=theta)
         x_values = multivariate_normal.pdf(x=z_values,
                                            mean=[float(theta['mu'])] *
                                            int(m_sample),
                                            cov=cov)
+        return pd.Series(x_values)
     except ValueError as err:
         log.LOGGER.exception("%s", "error: h_function: " + str(err))
         log.LOGGER.exception("%s", str(cov))
         log.LOGGER.exception("%s", str(theta))
-    return pd.Series(x_values)
 
 
 def e_step_k(z_values, theta):
@@ -220,17 +220,17 @@ def e_step_k(z_values, theta):
                              'sigma': 1,
                              'rho': 0}
                       )
-    h0_x = (1.0 - float(theta['pi'])) * h0_x
+    h0_x *= 1.0 - float(theta['pi'])
     h1_x = h_function(z_values=z_values,
                       m_sample=z_values.shape[1],
                       theta=theta
                       )
-    h1_x = float(theta['pi']) * h1_x
+    h1_x *= float(theta['pi'])
     k_state = h1_x / (h1_x + h0_x)
     return k_state.to_list()
 
 
-def local_idr(z_values, lidr, theta):
+def local_idr(z_values, theta):
     """
     compute local IDR
     """
@@ -240,12 +240,12 @@ def local_idr(z_values, lidr, theta):
                              'sigma': 1,
                              'rho': 0}
                       )
-    h0_x = (1.0 - float(theta['pi'])) * h0_x
+    h0_x *= (1.0 - float(theta['pi']))
     h1_x = h_function(z_values=z_values,
                       m_sample=z_values.shape[1],
                       theta=theta
                       )
-    h1_x = float(theta['pi']) * h1_x
+    h1_x *= float(theta['pi'])
     lidr = h0_x / (h1_x + h0_x)
     return lidr.to_list()
 
@@ -289,7 +289,6 @@ def m_step_rho(z_values, k_state, theta):
     """
     nb_non_diag = float(z_values.shape[1])**2 - float(z_values.shape[1])
     z_norm_time = 0.0
-    z_norm_time_i = 0.0
     for i in range(z_values.shape[0]):
         z_norm_time_i = 0.0
         for j in range(z_values.shape[1]):
@@ -306,6 +305,8 @@ def loglikelihood(z_values, k_state, theta):
     """
     Compute logLikelihood of the pseudo-data
     """
+    h1_x = [0.0]
+    i = 0
     try:
         h0_x = h_function(z_values=z_values,
                           m_sample=z_values.shape[1],
@@ -354,7 +355,6 @@ def em_pseudo_data(z_values,
     """
     theta_t0 = deepcopy(theta)
     theta_t1 = deepcopy(theta)
-    logl_t0 = 0.0
     logl_t1 = -np.inf
     while delta(theta_t0, theta_t1, threshold, logl_t1):
         logl_t0 = logl_t1
@@ -392,14 +392,14 @@ def em_pseudo_data(z_values,
                              rho: " +
                              str(logl_t1 - logl_t0))
             log.LOGGER.debug("%s", str(theta_t1))
-            return (theta_t0, k_state, logger)
+            return theta_t0, k_state, logger
         logger = log.add_log(
             log=logger,
             theta=theta_t1,
             logl=logl_t1,
             pseudo=False
         )
-    return (theta_t1, k_state, logger)
+    return theta_t1, k_state, logger
 
 
 def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
@@ -409,15 +409,15 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
     theta_t0 = deepcopy(THETA_INIT)
     theta_t1 = deepcopy(THETA_INIT)
     k_state = [0.0] * int(x_score.shape[0])
-    u_values = [0.0] * int(x_score.shape[0])
-    z_values = [0.0] * int(x_score.shape[0])
     lidr = [0.0] * int(x_score.shape[0])
-    logger = {'logl': list(),
-           'pi': list(),
-           'mu': list(),
-           'sigma': list(),
-           'rho': list(),
-           'pseudo_data': list()}
+    logger = {
+        'logl': list(),
+        'pi': list(),
+        'mu': list(),
+        'sigma': list(),
+        'rho': list(),
+        'pseudo_data': list()
+    }
     logl_t1 = -np.inf
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
     while delta(theta_t0, theta_t1, threshold, logl_t1):
@@ -434,7 +434,6 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
         )
         lidr = local_idr(
             z_values=z_values,
-            lidr=lidr,
             theta=theta_t1
         )
         logl_t1 = loglikelihood(
@@ -448,12 +447,14 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
             logl=logl_t1,
             pseudo=True
         )
-        log.plot_log(log, str(log_name) + "_log.pdf")
-        log.plot_classif(x_score,
-                                u_values,
-                                z_values,
-                                lidr,
-                                str(log_name) + "_classif.pdf")
+        log.plot_log(logger, str(log_name) + "_log.pdf")
+        log.plot_classif(
+            x_score,
+            u_values,
+            z_values,
+            lidr,
+            str(log_name) + "_classif.pdf"
+        )
         log.LOGGER.debug("%s", str(theta_t1))
     return (theta_t1, lidr)
 
@@ -483,8 +484,9 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 #                                 "data/test/c1_r2.narrowPeak"])
 
 
-
-THETA_INIT = {'pi': 0.5,
-              'mu': 0.0,
-              'sigma': 1.0,
-              'rho': 0.9}
+THETA_INIT = {
+    'pi': 0.5,
+    'mu': 0.0,
+    'sigma': 1.0,
+    'rho': 0.9
+}
