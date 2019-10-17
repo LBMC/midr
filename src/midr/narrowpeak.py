@@ -499,12 +499,13 @@ def process_bed(file_names: list,
         score_cols=score_cols,
         pos_cols=pos_cols,
     )
-    local_idr = idr_func(
+    theta, local_idr = idr_func(
        narrowpeaks2array(
            np_list=bed_files,
            score_col=score_cols
        )
     )
+    print(theta)
     writefiles(
         bed_files=bed_files,
         file_names=file_names,
