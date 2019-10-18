@@ -6,7 +6,7 @@ This section of the project provides facilitites to handle NarrowPeaks files
 and compute IDR on the choosen value in the NarrowPeaks columns
 """
 
-from os import path, access, R_OK
+from os import path, access, R_OK, W_OK, makedirs
 from pathlib import PurePath
 from typing import List
 from typing import Callable
@@ -143,7 +143,7 @@ def writefiles(bed_files: list,
     idr_col = 0
     for bed in bed_files:
         output_name = PurePath(outdir).joinpath(
-            "idr_" + str(file_names[idr_col])
+            "idr_" + PurePath(str(file_names[idr_col])).name
         )
         bed.assign(idr=idr[idr_col]).to_csv(
             output_name, sep='\t',
@@ -493,6 +493,10 @@ def process_bed(file_names: list,
     :param pos_cols: list of position column name to sort and merge on
     :return: nothing
     """
+    assert access(PurePath(outdir).parent, W_OK), \
+        "Folder {} isn't writable".format(outdir)
+    if not path.isdir(outdir):
+        makedirs(outdir)
     bed_files = readfiles(
         file_names=file_names,
         file_cols=file_cols,
