@@ -140,12 +140,11 @@ def writefiles(bed_files: list,
     :param outdir: output directory
     :return: nothing
     """
-    idr_col = 0
     for bed in bed_files:
         output_name = PurePath(outdir).joinpath(
             "idr_" + PurePath(str(file_names[idr_col])).name
         )
-        bed.assign(idr=idr[idr_col]).to_csv(
+        bed.assign(idr=idr).to_csv(
             output_name, sep='\t',
             encoding='utf-8',
             header=False,
@@ -504,7 +503,7 @@ def process_bed(file_names: list,
         pos_cols=pos_cols,
     )
     theta, local_idr = idr_func(
-       narrowpeaks2array(
+       x_score=narrowpeaks2array(
            np_list=bed_files,
            score_col=score_cols
        )
@@ -520,5 +519,4 @@ def process_bed(file_names: list,
 
 if __name__ == "__main__":
     import doctest
-
     doctest.testmod()
