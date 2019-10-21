@@ -67,7 +67,7 @@ def process_bed(file_name: str,
     output_name = PurePath(outdir).joinpath(
         "idr_" + PurePath(str(file_name)).name
     )
-    boley_bed.assign(idr=lidr[0]).to_csv(
+    boley_bed.assign(idr=lidr).to_csv(
         output_name, sep='\t',
         encoding='utf-8',
         header=False,
