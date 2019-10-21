@@ -156,8 +156,7 @@ def g_function(z_values, theta):
     compute scalded Gaussian cdf for Copula
     """
     sigma = np.sqrt(float(theta['sigma']))
-    #  z_norm = (float(z_values) - float(theta['mu'])) / sigma
-    f_pi = float(theta['pi'])  # / sigma
+    f_pi = float(theta['pi']) # / sigma
     return f_pi * norm.cdf(float(z_values), loc=theta['mu'], scale=sigma) + \
         (1.0 - f_pi) * norm.cdf(float(z_values), loc=0, scale=1)
 
@@ -405,6 +404,34 @@ def em_pseudo_data(z_values,
 def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
     """
     pseudo likelhood optimization for the copula model parameters
+    :param x_score np.array of score (measures x samples)
+    :param threshold float min delta between every parameters between two
+    iterations
+    :param log_name str name of the log files
+    :return (theta: dict, lidr: list) with thata the model parameters and
+    lidr the local idr values for each measures
+
+    >>> THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
+    >>> THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
+    >>> THETA_TEST = {'pi': 0.2,
+    ...               'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
+    ...               'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
+    ...               'rho': 0.75}
+    >>> DATA = sim_m_samples(n_value=1000,
+    ...                      m_sample=2,
+    ...                      theta_0=THETA_TEST_0,
+    ...                      theta_1=THETA_TEST_1)
+    >>> (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
+    ...                                      threshold=0.01,
+    ...                                      log_name=str(THETA_TEST))
+    >>> THETA_RES['pi'] - THETA_TEST['pi'] < 0.01
+    True
+    >>> THETA_RES['mu'] - THETA_TEST['mu'] < 0.01
+    True
+    >>> THETA_RES['sigma'] - THETA_TEST['rho'] < 0.01
+    True
+    >>> THETA_RES['rho'] - THETA_TEST['rho'] < 0.01
+    True
     """
     theta_t0 = deepcopy(THETA_INIT)
     theta_t1 = deepcopy(THETA_INIT)
@@ -458,31 +485,6 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
         log.LOGGER.debug("%s", str(theta_t1))
     return (theta_t1, lidr)
 
-#  THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
-#  THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
-#  THETA_TEST = {'pi': 0.2,
-#                'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
-#                'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
-#                'rho': 0.75}
-#
-#  DATA = sim_m_samples(n_value=1000,
-#                       m_sample=2,
-#                       theta_0=THETA_TEST_0,
-#                       theta_1=THETA_TEST_1)
-#  (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
-#                                           threshold=0.01,
-#                                           log_name=str(THETA_TEST))
-#  print(THETA_TEST)
-#
-#  plt.subplot(1, 1, 1)
-#  plt.scatter(DATA['K'], K, c=LIDR)
-#  plt.ylabel('k')
-#  plt.savefig("k_vs_estK_" + str(THETA_TEST) + ".pdf")
-
-#  test = NarrowPeaks(file_merge="data/test/c1_merge.narrowPeak",
-#                     file_names=["data/test/c1_r1.narrowPeak",
-#                                 "data/test/c1_r2.narrowPeak"])
-
 
 THETA_INIT = {
     'pi': 0.5,
@@ -490,3 +492,8 @@ THETA_INIT = {
     'sigma': 1.0,
     'rho': 0.9
 }
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
+
