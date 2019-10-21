@@ -75,7 +75,9 @@ def sim_multivariate_gaussian(n_value, m_sample, theta):
                                          size=int(n_value))
 
 
-def sim_m_samples(n_value, m_sample, theta_0, theta_1):
+def sim_m_samples(n_value, m_sample,
+                  theta_0={'pi': 0.2, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0},
+                  theta_1={'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}):
     """
     simulate sample where position score are drawn from two different
     multivariate Gaussian distribution
@@ -133,8 +135,14 @@ def compute_empirical_marginal_cdf(rank):
     """
     normalize ranks to compute empirical marginal cdf and scale by n / (n+1)
 
-    >>> r = compute_rank(np.array([[0.0,0.0],[10.0,30.0],\
-        [20.0,20.0],[30.0,10.0]]))
+    >>> r = compute_rank(np.array(
+    ...    [[0.0,0.0],
+    ...    [10.0,30.0],
+    ...    [13.0,33.0],
+    ...    [20.0,20.0],
+    ...    [21.0,21.0],
+    ...    [43.0,24.0],
+    ...    [30.0,10.0]]))
     >>> compute_empirical_marginal_cdf(r)
     array([[0.2, 0.2],
            [0.4, 0.8],
@@ -147,7 +155,7 @@ def compute_empirical_marginal_cdf(rank):
     scaling_factor = n_value / (n_value + 1.0)
     for i in range(int(n_value)):
         for j in range(int(m_sample)):
-            x_score[i][j] = (float(rank[i][j]) / n_value) * scaling_factor
+            x_score[i][j] = (float(rank[i][j] - 1) / n_value) * scaling_factor
     return x_score
 
 
@@ -351,6 +359,34 @@ def em_pseudo_data(z_values,
                    threshold=0.001):
     """
     EM optimization of theta for pseudo-data
+    >>> THETA_TEST = {'pi': 0.2,
+    ...               'mu': 2,
+    ...               'sigma': 3,
+    ...               'rho': 0.65}
+    >>> DATA = sim_m_samples(n_value=1000,
+    ...                      m_sample=2,
+    ...                      theta_1=THETA_TEST)
+    >>> (THETA_RES, KSTATE, LIDR) = em_pseudo_data(
+    ...    z_values=DATA["X"],
+    ...    logger={
+    ...        'logl': list(),
+    ...        'pi': list(),
+    ...        'mu': list(),
+    ...        'sigma': list(),
+    ...        'rho': list(),
+    ...        'pseudo_data': list()
+    ...    },
+    ...    theta=THETA_TEST,
+    ...    k_state=[0.0] * DATA['X'].shape[0],
+    ...    threshold=0.01)
+    >>> abs(THETA_RES['pi'] - THETA_TEST['pi']) < 0.1
+    True
+    >>> abs(THETA_RES['mu'] - THETA_TEST['mu']) < 0.1
+    True
+    >>> abs(THETA_RES['sigma'] - THETA_TEST['sigma']) < 0.1
+    True
+    >>> abs(THETA_RES['rho'] - THETA_TEST['rho']) < 0.1
+    True
     """
     theta_t0 = deepcopy(theta)
     theta_t1 = deepcopy(theta)
@@ -424,13 +460,15 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
     >>> (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
     ...                                      threshold=0.01,
     ...                                      log_name=str(THETA_TEST))
-    >>> THETA_RES['pi'] - THETA_TEST['pi'] < 0.01
+    >>> print(THETA_TEST)
+    >>> print(THETA_RES)
+    >>> abs(THETA_RES['pi'] - THETA_TEST['pi']) < 0.1
     True
-    >>> THETA_RES['mu'] - THETA_TEST['mu'] < 0.01
+    >>> abs(THETA_RES['mu'] - THETA_TEST['mu']) < 0.1
     True
-    >>> THETA_RES['sigma'] - THETA_TEST['rho'] < 0.01
+    >>> abs(THETA_RES['sigma'] - THETA_TEST['rho']) < 0.1
     True
-    >>> THETA_RES['rho'] - THETA_TEST['rho'] < 0.01
+    >>> abs(THETA_RES['rho'] - THETA_TEST['rho']) < 0.1
     True
     """
     theta_t0 = deepcopy(THETA_INIT)
