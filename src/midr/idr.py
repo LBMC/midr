@@ -19,6 +19,7 @@ from scipy.stats import rankdata
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
+from scipy.optimize import brentq
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -70,7 +71,7 @@ def sim_multivariate_gaussian(n_value, m_sample, theta):
     cov = cov_matrix(m_sample=m_sample,
                      theta=theta)
     return np.random.multivariate_normal(mean=[float(theta['mu'])] *
-                                         int(m_sample),
+                                              int(m_sample),
                                          cov=cov,
                                          size=int(n_value))
 
@@ -138,10 +139,7 @@ def compute_empirical_marginal_cdf(rank):
     >>> r = compute_rank(np.array(
     ...    [[0.0,0.0],
     ...    [10.0,30.0],
-    ...    [13.0,33.0],
     ...    [20.0,20.0],
-    ...    [21.0,21.0],
-    ...    [43.0,24.0],
     ...    [30.0,10.0]]))
     >>> compute_empirical_marginal_cdf(r)
     array([[0.2, 0.2],
@@ -155,7 +153,7 @@ def compute_empirical_marginal_cdf(rank):
     scaling_factor = n_value / (n_value + 1.0)
     for i in range(int(n_value)):
         for j in range(int(m_sample)):
-            x_score[i][j] = (float(rank[i][j] - 1) / n_value) * scaling_factor
+            x_score[i][j] = (float(rank[i][j]) / n_value) * scaling_factor
     return x_score
 
 
@@ -164,9 +162,75 @@ def g_function(z_values, theta):
     compute scalded Gaussian cdf for Copula
     """
     sigma = np.sqrt(float(theta['sigma']))
-    f_pi = float(theta['pi']) # / sigma
+    f_pi = float(theta['pi'])  # / sigma
     return f_pi * norm.cdf(float(z_values), loc=theta['mu'], scale=sigma) + \
-        (1.0 - f_pi) * norm.cdf(float(z_values), loc=0, scale=1)
+           (1.0 - f_pi) * norm.cdf(float(z_values), loc=0, scale=1)
+
+
+def compute_grid(theta,
+                 function=g_function,
+                 size=1000,
+                 z_start=-4,
+                 z_stop=4):
+    """
+    compute a grid of function(z_values) from z_start to z_stop
+    :param function: function
+    :param theta: function parameters
+    :param size: size of the grid
+    :param z_start: start of the z_values
+    :param z_stop: stop of the z_values
+    :return: pd.array of 'z_values' paired with 'u_values'
+
+    >>> compute_grid(
+    ...    theta={'pi': 0.6, 'mu': 1.0, 'sigma': 2.0, 'rho': 0.0},
+    ...    size=4
+    ... )
+       z_values  u_values
+    0 -4.000000  0.000135
+    1 -1.333333  0.066173
+    2  1.333333  0.719416
+    3  4.000000  0.989819
+    """
+    z_grid = np.linspace(
+        start=z_start,
+        stop=z_stop,
+        num=size
+    )
+    u_grid = list()
+    for z_value in z_grid:
+        u_grid.append(function(z_values=z_value, theta=theta))
+    return pd.DataFrame({'z_values': z_grid, 'u_values': u_grid})
+
+def z_from_u(u_values, function, grid):
+    """
+    Compute z_values from u_values
+    :param u_values: list of u_values
+    :param function: g_function
+    :param theta: g_function parameter
+    :return: list of z_value
+
+    >>> z_from_u(
+    ...    u_values=[0.2, 0.3, 0.5, 0.9],
+    ...    function=g_function,
+    ...    grid=compute_grid(
+    ...        theta={'pi': 0.6, 'mu': 1.0, 'sigma': 2.0, 'rho': 0.0},
+    ...        size=20
+    ...    )
+    ... )
+    """
+    z_values = np.empty_like(u_values)
+    for u_value in u_values:
+        print(np.nditer(z_values))
+    for u_value in u_values:
+        a_loc = grid.loc[grid['u_values'] < u_value].index[-1]
+        b_loc = grid.loc[grid['u_values'] > u_value].index[0]
+        z_value = np.nditer(z_values)
+        z_value = brentq(
+            f=lambda x: function(x, u_value),
+            a=grid['z_values'][a_loc],
+            b=grid['z_values'][b_loc]
+        )
+    return z_values
 
 
 def compute_z_from_u(u_values, theta):
@@ -179,24 +243,30 @@ def compute_z_from_u(u_values, theta):
     >>> compute_z_from_u(u, {'mu': 1, 'rho': 0.5, 'sigma': 1, 'pi': 0.5})
     array([[-0.44976896, -0.44976896],
            [ 0.21303303,  1.44976896],
-           [ 0.78696698,  0.78696698],
+           [ 0.78696697,  0.78696697],
            [ 1.44976896,  0.21303303]])
     """
-    #  fixed g function for given theta
-    g_func = lambda x: g_function(x,
-                                  theta=theta)
-    #  compute inverse function of g_func
-    g_m1 = lambda r: inversefunc(g_func,
-                                 y_values=r,
-                                 image=[0, 1],
-                                 open_domain=False,
-                                 domain=[min([-4, theta['mu'] - 4]),
-                                         max([4, theta['mu'] + 4])],
-                                 accuracy=0)
+    def to_solve(z_value, u_value):
+        """
+        fixed g function for given theta, function to solve
+        :param z_value:
+        :param u_value:
+        :return:
+        """
+        return u_value - g_function(z_values=z_value, theta=theta)
+    grid = compute_grid(
+        theta=theta,
+        function=g_function,
+        size=1000,
+        z_start=min([-4, theta['mu'] - 4]),
+        z_stop=max([4, theta['mu'] + 4])
+    )
     z_values = np.empty_like(u_values)
-    for i in range(u_values.shape[0]):
-        for j in range(u_values.shape[1]):
-            z_values[i][j] = g_m1(u_values[i][j])
+    for j in range(u_values.shape[1]):
+        z_values[:, j] = z_from_u(
+            u_values=u_values[:, j],
+            function=to_solve,
+            grid=grid)
     return z_values
 
 
@@ -208,7 +278,7 @@ def h_function(z_values, m_sample, theta):
     try:
         x_values = multivariate_normal.pdf(x=z_values,
                                            mean=[float(theta['mu'])] *
-                                           int(m_sample),
+                                                int(m_sample),
                                            cov=cov)
         return pd.Series(x_values)
     except ValueError as err:
@@ -285,7 +355,7 @@ def m_step_sigma(z_values, k_state, theta):
     for i in range(z_values.shape[0]):
         for j in range(z_values.shape[1]):
             z_norm_sq += float(k_state[i]) * (float(z_values[i][j]) -
-                                              float(theta['mu']))**2
+                                              float(theta['mu'])) ** 2
     return (1.0 / (float(z_values.shape[1]) * float(sum(k_state)))) * z_norm_sq
 
 
@@ -294,7 +364,7 @@ def m_step_rho(z_values, k_state, theta):
     compute maximization of rho
     0 < rho <= 1
     """
-    nb_non_diag = float(z_values.shape[1])**2 - float(z_values.shape[1])
+    nb_non_diag = float(z_values.shape[1]) ** 2 - float(z_values.shape[1])
     z_norm_time = 0.0
     for i in range(z_values.shape[0]):
         z_norm_time_i = 0.0
@@ -302,8 +372,9 @@ def m_step_rho(z_values, k_state, theta):
             for k in range(z_values.shape[1]):
                 if not k == j:
                     z_norm_time_i += (float(z_values[i][j]) -
-                                      float(theta['mu'])) *\
-                        (float(z_values[i][k]) - float(theta['mu']))
+                                      float(theta['mu'])) * \
+                                     (float(z_values[i][k]) - float(
+                                         theta['mu']))
         z_norm_time += float(k_state[i]) * z_norm_time_i
     return z_norm_time / (nb_non_diag * theta['sigma'] * float(sum(k_state)))
 
@@ -327,8 +398,8 @@ def loglikelihood(z_values, k_state, theta):
                           )
         logl = 0.0
         for i in range(z_values.shape[0]):
-            logl += (1.0-float(k_state[i])) * (math.log(1-theta['pi']) +
-                                               math.log(h0_x[i]))
+            logl += (1.0 - float(k_state[i])) * (math.log(1 - theta['pi']) +
+                                                 math.log(h0_x[i]))
             logl += float(k_state[i]) * (math.log(theta['pi']) +
                                          math.log(h1_x[i]))
         return logl
@@ -379,13 +450,13 @@ def em_pseudo_data(z_values,
     ...    theta=THETA_TEST,
     ...    k_state=[0.0] * DATA['X'].shape[0],
     ...    threshold=0.01)
-    >>> abs(THETA_RES['pi'] - THETA_TEST['pi']) < 0.1
+    >>> abs(THETA_RES['pi'] - THETA_TEST['pi']) < 0.2
     True
-    >>> abs(THETA_RES['mu'] - THETA_TEST['mu']) < 0.1
+    >>> abs(THETA_RES['mu'] - THETA_TEST['mu']) < 0.2
     True
-    >>> abs(THETA_RES['sigma'] - THETA_TEST['sigma']) < 0.1
+    >>> abs(THETA_RES['sigma'] - THETA_TEST['sigma']) < 1
     True
-    >>> abs(THETA_RES['rho'] - THETA_TEST['rho']) < 0.1
+    >>> abs(THETA_RES['rho'] - THETA_TEST['rho']) < 0.2
     True
     """
     theta_t0 = deepcopy(theta)
@@ -533,5 +604,5 @@ THETA_INIT = {
 
 if __name__ == "__main__":
     import doctest
-    doctest.testmod()
 
+    doctest.testmod()
