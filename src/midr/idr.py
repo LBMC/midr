@@ -243,26 +243,24 @@ def compute_z_from_u(u_values, theta):
            [ 0.78696697,  0.78696697],
            [ 1.44976896,  0.21303303]])
     """
-    def to_solve(z_value, u_value):
-        """
-        fixed g function for given theta, function to solve
-        :param z_value:
-        :param u_value:
-        :return:
-        """
-        return u_value - g_function(z_values=z_value, theta=theta)
+    min_quantile = (
+        1.0 / u_values.shape[0] * (u_values.shape[0] / (u_values.shape[0] + 1))
+    )
     grid = compute_grid(
         theta=theta,
         function=g_function,
         size=10000,
-        z_start=min([-4, theta['mu'] - 4]),
-        z_stop=max([4, theta['mu'] + 4])
+        z_start=norm.ppf(min_quantile),
+        z_stop=norm.ppf(1 - min_quantile)
     )
     z_values = np.empty_like(u_values)
     for j in range(u_values.shape[1]):
         z_values[:, j] = z_from_u(
             u_values=u_values[:, j],
-            function=to_solve,
+            function=lambda x, y: y - g_function(
+                z_values=x,
+                theta=theta
+            ),
             grid=grid)
     return z_values
 
