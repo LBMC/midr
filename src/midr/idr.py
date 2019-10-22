@@ -122,7 +122,7 @@ def compute_rank(x_score):
     rank = np.empty_like(x_score)
     for j in range(x_score.shape[1]):
         # we want the rank to start at 1
-        rank[:, j] = rankdata(x_score[:, j])
+        rank[:, j] = rankdata(x_score[:, j], method="ordinal")
 
     plt.scatter(rank[:, 0],
                 rank[:, 1])
@@ -603,18 +603,18 @@ if __name__ == "__main__":
     import doctest
     doctest.testmod()
 
-    THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
-    THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
-    THETA_TEST = {'pi': 0.2,
-                  'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
-                  'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
-                  'rho': 0.75}
-    DATA = sim_m_samples(n_value=1000,
-                         m_sample=2,
-                         theta_0=THETA_TEST_0,
-                         theta_1=THETA_TEST_1)
-    (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
-                                          threshold=0.01,
-                                          log_name=str(THETA_TEST))
-    print(THETA_TEST)
-    print(THETA_RES)
+    # THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
+    # THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
+    # THETA_TEST = {'pi': 0.2,
+    #               'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
+    #               'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
+    #               'rho': 0.75}
+    # DATA = sim_m_samples(n_value=1000,
+    #                      m_sample=2,
+    #                      theta_0=THETA_TEST_0,
+    #                      theta_1=THETA_TEST_1)
+    # (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
+    #                                       threshold=0.01,
+    #                                       log_name=str(THETA_TEST))
+    # print(THETA_TEST)
+    # print(THETA_RES)
