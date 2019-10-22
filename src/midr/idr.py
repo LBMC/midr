@@ -218,15 +218,12 @@ def z_from_u(u_values, function, grid):
     ...    )
     ... )
     """
-    z_values = np.empty_like(u_values)
-    for u_value in u_values:
-        print(np.nditer(z_values))
-    for u_value in u_values:
-        a_loc = grid.loc[grid['u_values'] < u_value].index[-1]
-        b_loc = grid.loc[grid['u_values'] > u_value].index[0]
-        z_value = np.nditer(z_values)
-        z_value = brentq(
-            f=lambda x: function(x, u_value),
+    z_values = [0.0] * len(u_values)
+    for i in range(len(u_values)):
+        a_loc = grid.loc[grid['u_values'] < u_values[i]].index[-1]
+        b_loc = grid.loc[grid['u_values'] > u_values[i]].index[0]
+        z_values[i] = brentq(
+            f=lambda x: function(x, u_values[i]),
             a=grid['z_values'][a_loc],
             b=grid['z_values'][b_loc]
         )
@@ -257,7 +254,7 @@ def compute_z_from_u(u_values, theta):
     grid = compute_grid(
         theta=theta,
         function=g_function,
-        size=1000,
+        size=10000,
         z_start=min([-4, theta['mu'] - 4]),
         z_stop=max([4, theta['mu'] + 4])
     )
@@ -604,5 +601,20 @@ THETA_INIT = {
 
 if __name__ == "__main__":
     import doctest
-
     doctest.testmod()
+
+    THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
+    THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
+    THETA_TEST = {'pi': 0.2,
+                  'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
+                  'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
+                  'rho': 0.75}
+    DATA = sim_m_samples(n_value=1000,
+                         m_sample=2,
+                         theta_0=THETA_TEST_0,
+                         theta_1=THETA_TEST_1)
+    (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
+                                          threshold=0.01,
+                                          log_name=str(THETA_TEST))
+    print(THETA_TEST)
+    print(THETA_RES)
