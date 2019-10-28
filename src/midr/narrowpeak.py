@@ -140,9 +140,9 @@ def writefiles(bed_files: list,
     :param outdir: output directory
     :return: nothing
     """
-    for bed in bed_files:
+    for bed, file_name in zip(bed_files, file_names):
         output_name = PurePath(outdir).joinpath(
-            "idr_" + PurePath(str(file_names[idr_col])).name
+            "idr_" + PurePath(str(file_name)).name
         )
         bed.assign(idr=idr).to_csv(
             output_name, sep='\t',
@@ -163,7 +163,8 @@ def pos_overlap(pos_ref: pd.Series, pos: pd.Series) -> bool:
     ... 'strand': "."}),
     ... pos = pd.Series({'chr': 'a', 'start': 100, 'stop': 120, 'strand': "."}))
     True
-    >>> pos_overlap(pos_ref = pd.Series({'chr': 'a', 'start': 100, 'stop':
+    >>> pos_overlap(
+    ... pos_ref = pd.Series({'chr': 'a', 'start': 100, 'stop':
     ... 120, 'strand': "."}),
     ... pos = pd.Series({'chr': 'a', 'start': 110, 'stop': 130, 'strand': "."}))
     True
@@ -264,8 +265,94 @@ def merge_peak(ref_peak: pd.Series, peak: pd.Series,
     return merged_peak
 
 
+def iter_peaks_merged_before(merged_peaks: pd.DataFrame,
+                             peaks: pd.DataFrame,
+                             peaks_it: iter,
+                             peak: int,
+                             merged_peak: int,
+                             prev_peak: int) -> (int, int, int):
+    """
+    Helper function for iter_peaks()
+    :param prev_peak:
+    :param merged_peaks: pd.DataFrame of the reference peaks
+    :param peaks: pd.DataFrame of the peaks we want to merge
+    :param peaks_it: iter on peaks list
+    :param peak: int position in peaks
+    :param merged_peak:  int position in merged_peaks
+    :return: (merged_peak, peak - 1, prev_peak) triplet of positions
+    """
+    # if merged_peak before peak
+    if peak is None:
+        peak = next(peaks_it)
+    elif peaks.iloc[peak]['stop'] < merged_peaks.iloc[merged_peak]['start']:
+        peak = next(peaks_it)
+        prev_peak = None
+    return merged_peak, peak, prev_peak
+
+
+def iter_peaks_merged_after(merged_peaks: pd.DataFrame,
+                            peaks: pd.DataFrame,
+                            merged_peaks_it: iter,
+                            peak: int,
+                            merged_peak: int,
+                            prev_peak: int) -> (int, int, int):
+    """
+    Helper function for iter_peaks()
+    :param prev_peak:
+    :param merged_peaks: pd.DataFrame of the reference peaks
+    :param peaks: pd.DataFrame of the peaks we want to merge
+    :param merged_peaks_it: iter on merged_peaks list
+    :param peak: int position in peaks
+    :param merged_peak:  int position in merged_peaks
+    :return: (merged_peak, peak - 1, prev_peak) triplet of positions
+    """
+    # if merged_peak after peak
+    if merged_peak is None:
+        merged_peak = next(merged_peaks_it)
+    elif merged_peaks.iloc[merged_peak]['stop'] < \
+            peaks.iloc[peak]['start']:
+        merged_peak = next(merged_peaks_it)
+        prev_peak = None
+    return merged_peak, peak, prev_peak
+
+
+def iter_peaks_merged_overlap(merged_peaks: pd.DataFrame,
+                              peaks: pd.DataFrame,
+                              peaks_it: iter,
+                              merged_peaks_it: iter,
+                              peak: int,
+                              merged_peak: int,
+                              prev_peak: int) -> (int, int, int):
+    """
+    Helper function for iter_peaks()
+    :param prev_peak:
+    :param merged_peaks: pd.DataFrame of the reference peaks
+    :param peaks: pd.DataFrame of the peaks we want to merge
+    :param peaks_it: iter on peaks list
+    :param merged_peaks_it: iter on merged_peaks list
+    :param peak: int position in peaks
+    :param merged_peak:  int position in merged_peaks
+    :return: (merged_peak, peak - 1, prev_peak) triplet of positions
+    """
+    # if merged_peak overlap peak
+    if pos_overlap(
+            pos_ref=merged_peaks.iloc[merged_peak],
+            pos=peaks.iloc[peak]
+    ):
+        if prev_peak is not None:
+            if merged_peak + 1 < merged_peaks.shape[0]:
+                if pos_overlap(
+                        pos_ref=merged_peaks.iloc[merged_peak],
+                        pos=merged_peaks.iloc[merged_peak + 1]
+                ):
+                    merged_peak = next(merged_peaks_it)
+        prev_peak = peak - 1
+        peak = next(peaks_it)
+    return merged_peak, peak, prev_peak
+
+
 def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
-               peaks_it) -> (int, int):
+               peaks_it) -> (int, int, int):
     """
     Move iterator over ref_peaks and peaks for the merge_peaks() function
     :param merged_peaks: pd.DataFrame of the reference peaks
@@ -311,40 +398,87 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
     ... except StopIteration:
     ...     print("end")
     end
+    >>> test_iter = iter_peaks(
+    ... merged_peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 100000, 200000],
+    ... 'stop': [500, 500, 3000, 10000, 110000, 230000],
+    ... 'strand': [".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 270, 2000, 7000, 100000, 215000],
+    ... 'score': [20, 30, 100, 15, 30, 200]}),
+    ... peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'score': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]}),
+    ... merged_peaks_it=iter(range(5)),
+    ... peaks_it=iter(range(10))
+    ... )
+    >>> next(test_iter)
+    (0, 1, 0)
+    >>> next(test_iter)
+    (1, 2, 1)
+    >>> next(test_iter)
+    (2, 3, 2)
+    >>> next(test_iter)
+    (3, 6, 3)
+    >>> next(test_iter)
+    (4, 7, 6)
+    >>> next(test_iter)
+    (4, 8, 7)
+    >>> try:
+    ...     next(test_iter)
+    ... except StopIteration:
+    ...     print("end")
+    end
     """
-    merged_peak = next(merged_peaks_it)
-    peak = next(peaks_it)
+    merged_peak = None
+    peak = None
     prev_peak = None
     while True:
         try:
             # if merged_peak before peak
-            if peaks.iloc[peak]['stop'] < merged_peaks.iloc[
-                    merged_peak]['start']:
-                peak = next(peaks_it)
-                prev_peak = None
+            merged_peak, peak, prev_peak = iter_peaks_merged_before(
+                merged_peaks=merged_peaks,
+                peaks=peaks,
+                peaks_it=peaks_it,
+                peak=peak,
+                merged_peak=merged_peak,
+                prev_peak=prev_peak
+            )
             # if merged_peak after peak
-            if merged_peaks.iloc[merged_peak]['stop'] < peaks.iloc[
-                    peak]['start']:
-                merged_peak = next(merged_peaks_it)
-                prev_peak = None
-            if pos_overlap(
-                    pos_ref=merged_peaks.iloc[merged_peak],
-                    pos=peaks.iloc[peak]
-            ):
-                if prev_peak is None:
-                    prev_peak = peak
-                peak = next(peaks_it)
+            merged_peak, peak, prev_peak = iter_peaks_merged_after(
+                merged_peaks=merged_peaks,
+                peaks=peaks,
+                merged_peaks_it=merged_peaks_it,
+                peak=peak,
+                merged_peak=merged_peak,
+                prev_peak=prev_peak
+            )
+            # if merged_peak overlap peak
+            merged_peak, peak, prev_peak = iter_peaks_merged_overlap(
+                merged_peaks=merged_peaks,
+                peaks=peaks,
+                peaks_it=peaks_it,
+                merged_peaks_it=merged_peaks_it,
+                peak=peak,
+                merged_peak=merged_peak,
+                prev_peak=prev_peak
+            )
         except StopIteration:
-            if prev_peak is None:
-                prev_peak = peak
-            yield ((merged_peak, peak + 1, prev_peak))
+            yield merged_peak, peak + 1, prev_peak
             break  # Iterator exhausted: stop the loop
         else:
             if not pos_overlap(
                     pos_ref=merged_peaks.iloc[merged_peak],
                     pos=peaks.iloc[peak]
             ) and prev_peak is not None:
-                yield ((merged_peak, peak, prev_peak))
+                yield merged_peak, peak, prev_peak
                 prev_peak = None
 
 
@@ -387,6 +521,32 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     3   a    4000   10000      .    7000         14.0
     4   a  100000  110000      .  100000         30.0
     5   a  200000  230000      .  215000        300.0
+    >>> merge_peaks(
+    ... ref_peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 100000, 200000],
+    ... 'stop': [500, 500, 3000, 10000, 110000, 230000],
+    ... 'strand': [".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 270, 2000, 7000, 100000, 215000],
+    ... 'signalValue': [20, 30, 100, 15, 30, 200]}),
+    ... peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 280, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
+    ... )
+      chr   start    stop strand    peak  signalValue
+    0   a     100     500      .     250         20.0
+    1   a     100     500      .     270         15.0
+    2   a    1000    3000      .    2000        100.0
+    3   a    4000   10000      .    7000         14.0
+    4   a  100000  110000      .  100000         30.0
+    5   a  200000  230000      .  215000        300.0
     """
     merged_peaks = ref_peaks.copy()
     merged_peaks[merged_peaks.columns.difference(pos_cols)] = np.NaN
@@ -397,6 +557,10 @@ def merge_peaks(ref_peaks: pd.DataFrame,
             peaks=peaks,
             merged_peaks_it=merged_peaks_it,
             peaks_it=peaks_it):
+        print(merged_peak, (merged_peak + 1))
+        print(merged_peaks.iloc[merged_peak:(merged_peak + 1)])
+        print(prev_peak, peak)
+        print(peaks.iloc[prev_peak:peak])
         if prev_peak != peak:
             peak = best_peak(
                 ref_peak=merged_peaks.iloc[merged_peak],
@@ -404,6 +568,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
                 start_pos=prev_peak,
                 score_col=score_col
             )
+        print(peak)
         merged_peaks.iloc[merged_peak, :] = merge_peak(
             ref_peak=merged_peaks.iloc[merged_peak],
             peak=peaks.iloc[peak],
