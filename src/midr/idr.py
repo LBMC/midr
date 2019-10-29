@@ -150,7 +150,10 @@ def compute_empirical_marginal_cdf(rank):
     x_score = np.empty_like(rank)
     n_value = float(rank.shape[0])
     m_sample = float(rank.shape[1])
-    scaling_factor = n_value / (n_value + 1.0)
+    # scaling_factor = n_value / (n_value + 1.0)
+    # we want a max value of 0.99
+    scaling_factor = n_value / 0.99 - n_value
+    scaling_factor = n_value / (n_value + scaling_factor)
     for i in range(int(n_value)):
         for j in range(int(m_sample)):
             x_score[i][j] = (float(rank[i][j]) / n_value) * scaling_factor
@@ -516,7 +519,7 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
     ...               'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
     ...               'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
     ...               'rho': 0.75}
-    >>> DATA = sim_m_samples(n_value=1000,
+    >>> DATA = sim_m_samples(n_value=10000,
     ...                      m_sample=2,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
