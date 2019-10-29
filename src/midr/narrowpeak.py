@@ -266,17 +266,19 @@ def merge_peak(ref_peak: pd.Series, peak: pd.Series,
 
 
 def iter_peaks_merged_before(merged_peaks: pd.DataFrame,
-                             peaks: pd.DataFrame,
-                             peaks_it: iter,
-                             peak: [int, int],
-                             merged_peak: [int, int]
-                             ) -> ([int, int], [int, int]):
+                              peaks: pd.DataFrame,
+                              peaks_it: iter,
+                              merged_peaks_it: iter,
+                              peak: [int, int],
+                              merged_peak: [int, int]
+                              ) -> ([int, int], [int, int]):
     """
     Helper function for iter_peaks()
     :param prev_peak:
     :param merged_peaks: pd.DataFrame of the reference peaks
     :param peaks: pd.DataFrame of the peaks we want to merge
     :param peaks_it: iter on peaks list
+    :param merged_peaks_it: iter on merged_peaks list
     :param peak: int position in peaks
     :param merged_peak:  int position in merged_peaks
     :return: (merged_peak, peak - 1, prev_peak) triplet of positions
@@ -294,16 +296,18 @@ def iter_peaks_merged_before(merged_peaks: pd.DataFrame,
 
 
 def iter_peaks_merged_after(merged_peaks: pd.DataFrame,
-                            peaks: pd.DataFrame,
-                            merged_peaks_it: iter,
-                            peak: [int, int],
-                            merged_peak: [int, int]
-                            ) -> ([int, int], [int, int]):
+                              peaks: pd.DataFrame,
+                              peaks_it: iter,
+                              merged_peaks_it: iter,
+                              peak: [int, int],
+                              merged_peak: [int, int]
+                              ) -> ([int, int], [int, int]):
     """
     Helper function for iter_peaks()
     :param prev_peak:
     :param merged_peaks: pd.DataFrame of the reference peaks
     :param peaks: pd.DataFrame of the peaks we want to merge
+    :param peaks_it: iter on peaks list
     :param merged_peaks_it: iter on merged_peaks list
     :param peak: int position in peaks
     :param merged_peak:  int position in merged_peaks
@@ -322,17 +326,19 @@ def iter_peaks_merged_after(merged_peaks: pd.DataFrame,
 
 
 def iter_peaks_overlap(merged_peaks: pd.DataFrame,
-                       peaks: pd.DataFrame,
-                       peaks_it: iter,
-                       peak: [int, int],
-                       merged_peak: [int, int]
-                       ) -> ([int, int], [int, int]):
+                              peaks: pd.DataFrame,
+                              peaks_it: iter,
+                              merged_peaks_it: iter,
+                              peak: [int, int],
+                              merged_peak: [int, int]
+                              ) -> ([int, int], [int, int]):
     """
     Helper function for iter_peaks()
     :param prev_peak:
     :param merged_peaks: pd.DataFrame of the reference peaks
     :param peaks: pd.DataFrame of the peaks we want to merge
     :param peaks_it: iter on peaks list
+    :param merged_peaks_it: iter on merged_peaks list
     :param peak: int position in peaks
     :param merged_peak:  int position in merged_peaks
     :return: (merged_peak, peak - 1, prev_peak) triplet of positions
@@ -389,7 +395,6 @@ def iter_monad_error(function, **kwargs):
     try:
         merged_peak, peak = function(**kwargs)
     except StopIteration:
-        print("stopiter !")
         return kwargs["merged_peak"], kwargs["peak"], True
     return merged_peak, peak, False
 
@@ -414,8 +419,31 @@ def iter_monad_yield(function, **kwargs):
         if merged_peak[1] is not None:
             to_yield = merged_peak.copy(), peak.copy()
             merged_peak[1] = None
-    print(merged_peak, peak, end, to_yield)
+            peak[1] = None
     return merged_peak, peak, end, to_yield
+
+
+def map_iter_function(functions, **kwargs):
+    """
+    function to map iterator helper functions
+    :param functions: 
+    :param kwargs: 
+    :return: 
+    """
+    merged_peak = None
+    peak = None
+    end = None
+    to_yield = None
+    final_end = False
+    for function in functions:
+        merged_peak, peak, end, to_yield = iter_monad_yield(function, **kwargs)
+        kwargs["merged_peak"] = merged_peak
+        kwargs["peak"] = peak
+        if end:
+            final_end = end
+        if to_yield is not None:
+            return merged_peak, peak, final_end, to_yield
+    return merged_peak, peak, final_end, to_yield
 
 
 def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
@@ -483,11 +511,11 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
     ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
     ... 220000],
     ... 'score': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]}),
-    ... merged_peaks_it=iter(range(5)),
+    ... merged_peaks_it=iter(range(6)),
     ... peaks_it=iter(range(10))
     ... )
     >>> next(test_iter)
-    ([0, None], [1, 0])
+    ([1, 0], [1, 0])
     >>> next(test_iter)
     ([1, None], [2, 1])
     >>> next(test_iter)
@@ -508,40 +536,14 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
     peak = [None, None]
     end = False
     while not end:
-        print("iter")
         # if merged_peak before peak
-        merged_peak, peak, end, to_yield = iter_monad_yield(
-            function=iter_peaks_merged_before,
-            merged_peaks=merged_peaks,
-            peaks=peaks,
-            peaks_it=peaks_it,
-            peak=peak,
-            merged_peak=merged_peak
-        )
-        # if merged_peak after peak
-        merged_peak, peak, end, to_yield = iter_monad_yield(
-            function=iter_peaks_merged_after,
-            merged_peaks=merged_peaks,
-            peaks=peaks,
-            merged_peaks_it=merged_peaks_it,
-            peak=peak,
-            merged_peak=merged_peak
-        )
-        # if merged_peak overlap peak
-        merged_peak, peak, end, to_yield = iter_monad_yield(
-            function=iter_peaks_overlap,
-            merged_peaks=merged_peaks,
-            peaks=peaks,
-            peaks_it=peaks_it,
-            peak=peak,
-            merged_peak=merged_peak
-        )
-        if to_yield is not None:
-            print("merged !")
-            yield to_yield
-        # if merged_peak overlap peak + 1
-        merged_peak, peak, end, to_yield = iter_monad_yield(
-            function=iter_peaks_merged_overlap,
+        merged_peak, peak, end, to_yield = map_iter_function(
+            functions=[
+                iter_peaks_merged_before,
+                iter_peaks_merged_after,
+                iter_peaks_overlap,
+                iter_peaks_merged_overlap
+            ],
             merged_peaks=merged_peaks,
             peaks=peaks,
             peaks_it=peaks_it,
@@ -550,13 +552,12 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
             merged_peak=merged_peak
         )
         if to_yield is not None:
-            print("merged equality !")
             yield to_yield
     if peak[1] is None:
         peak[1] = peak[0] - 1
     peak[0] += 1
-    print("end !")
     yield merged_peak, peak
+    return
 
 
 def merge_peaks(ref_peaks: pd.DataFrame,
