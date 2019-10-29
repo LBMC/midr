@@ -196,9 +196,9 @@ def compute_grid(theta,
         stop=z_stop,
         num=size
     )
-    u_grid = list()
-    for z_value in z_grid:
-        u_grid.append(function(z_values=z_value, theta=theta))
+    u_grid = [0.0] * len(z_grid)
+    for i in range(len(z_grid)):
+        u_grid[i] = function(z_values=z_grid[i], theta=theta)
     return pd.DataFrame({'z_values': z_grid, 'u_values': u_grid})
 
 def z_from_u(u_values, function, grid):
@@ -220,8 +220,8 @@ def z_from_u(u_values, function, grid):
     """
     z_values = [0.0] * len(u_values)
     for i in range(len(u_values)):
-        a_loc = grid.loc[grid['u_values'] < u_values[i]].index[-1]
-        b_loc = grid.loc[grid['u_values'] > u_values[i]].index[0]
+        a_loc = grid.loc[grid['u_values'] <= u_values[i]].index[-1]
+        b_loc = grid.loc[grid['u_values'] >= u_values[i]].index[0]
         z_values[i] = brentq(
             f=lambda x: function(x, u_values[i]),
             a=grid['z_values'][a_loc],
@@ -243,15 +243,12 @@ def compute_z_from_u(u_values, theta):
            [ 0.78696697,  0.78696697],
            [ 1.44976896,  0.21303303]])
     """
-    min_quantile = (
-        1.0 / u_values.shape[0] * (u_values.shape[0] / (u_values.shape[0] + 1))
-    )
     grid = compute_grid(
         theta=theta,
         function=g_function,
         size=10000,
-        z_start=norm.ppf(min_quantile),
-        z_stop=norm.ppf(1 - min_quantile)
+        z_start=norm.ppf(np.amin(u_values), loc=theta['mu']) - 1,
+        z_stop=norm.ppf(np.amax(u_values), loc=theta['mu']) + 1
     )
     z_values = np.empty_like(u_values)
     for j in range(u_values.shape[1]):
