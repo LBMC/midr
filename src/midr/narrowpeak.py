@@ -417,7 +417,9 @@ def iter_monad_yield(function, **kwargs):
             to_yield = merged_peak.copy(), peak.copy()
             peak[1] = None
         if merged_peak[1] is not None:
-            to_yield = merged_peak.copy(), peak.copy()
+            merged_peak_to_yield = merged_peak.copy()
+            merged_peak_to_yield[0] = merged_peak_to_yield[1]
+            to_yield = merged_peak_to_yield, peak.copy()
             merged_peak[1] = None
             peak[1] = None
     return merged_peak, peak, end, to_yield
@@ -515,7 +517,7 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
     ... peaks_it=iter(range(10))
     ... )
     >>> next(test_iter)
-    ([1, 0], [1, 0])
+    ([0, 0], [1, 0])
     >>> next(test_iter)
     ([1, None], [2, 1])
     >>> next(test_iter)
@@ -573,58 +575,59 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     :param pos_cols: list list of columns name for position information
     :return: pd.DataFrame of the merged peaks
 
-    # >>> merge_peaks(
-    # ... ref_peaks=pd.DataFrame({
-    # ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a'],
-    # ... 'start': [50, 100, 1000, 4000, 100000, 200000],
-    # ... 'stop': [60, 500, 3000, 10000, 110000, 230000],
-    # ... 'strand': [".", ".", ".", ".", ".", "."],
-    # ... 'peak': [55, 250, 2000, 7000, 100000, 215000],
-    # ... 'signalValue': [10, 20, 100, 15, 30, 200]}),
-    # ... peaks=pd.DataFrame({
-    # ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
-    # ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
-    # ... 200000],
-    # ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
-    # ... 230000],
-    # ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
-    # ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
-    # ... 220000],
-    # ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
-    # ... )
-    #   chr   start    stop strand    peak  signalValue
-    # 0   a      50      60      .      55          NaN
-    # 1   a     100     500      .     250         20.0
-    # 2   a    1000    3000      .    2000        100.0
-    # 3   a    4000   10000      .    7000         14.0
-    # 4   a  100000  110000      .  100000         30.0
-    # 5   a  200000  230000      .  215000        300.0
-    # >>> merge_peaks(
-    # ... ref_peaks=pd.DataFrame({
-    # ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a'],
-    # ... 'start': [100, 100, 1000, 4000, 100000, 200000],
-    # ... 'stop': [500, 500, 3000, 10000, 110000, 230000],
-    # ... 'strand': [".", ".", ".", ".", ".", "."],
-    # ... 'peak': [250, 270, 2000, 7000, 100000, 215000],
-    # ... 'signalValue': [20, 30, 100, 15, 30, 200]}),
-    # ... peaks=pd.DataFrame({
-    # ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
-    # ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
-    # ... 200000],
-    # ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
-    # ... 230000],
-    # ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
-    # ... 'peak': [250, 280, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
-    # ... 220000],
-    # ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
-    # ... )
-    #   chr   start    stop strand    peak  signalValue
-    # 0   a     100     500      .     250         20.0
-    # 1   a     100     500      .     270         15.0
-    # 2   a    1000    3000      .    2000        100.0
-    # 3   a    4000   10000      .    7000         14.0
-    # 4   a  100000  110000      .  100000         30.0
-    # 5   a  200000  230000      .  215000        300.0
+    >>> merge_peaks(
+    ... ref_peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [50, 100, 1000, 4000, 100000, 200000],
+    ... 'stop': [60, 500, 3000, 10000, 110000, 230000],
+    ... 'strand': [".", ".", ".", ".", ".", "."],
+    ... 'peak': [55, 250, 2000, 7000, 100000, 215000],
+    ... 'signalValue': [10, 20, 100, 15, 30, 200]}),
+    ... peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
+    ... )
+      chr   start    stop strand    peak  signalValue
+    0   a      50      60      .      55          NaN
+    1   a     100     500      .     250         20.0
+    2   a    1000    3000      .    2000        100.0
+    3   a    4000   10000      .    7000         14.0
+    4   a  100000  110000      .  100000         30.0
+    5   a  200000  230000      .  215000        300.0
+    >>> merge_peaks(
+    ... ref_peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 100000, 200000, 200000],
+    ... 'stop': [500, 500, 3000, 10000, 110000, 230000, 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 270, 2000, 7000, 100000, 213000, 215000],
+    ... 'signalValue': [20, 30, 100, 15, 30, 150, 200]}),
+    ... peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 280, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
+    ... )
+      chr   start    stop strand    peak  signalValue
+    0   a     100     500      .     250         20.0
+    1   a     100     500      .     270         15.0
+    2   a    1000    3000      .    2000        100.0
+    3   a    4000   10000      .    7000         14.0
+    4   a  100000  110000      .  100000         30.0
+    5   a  200000  230000      .  213000        200.0
+    6   a  200000  230000      .  215000        300.0
     """
     merged_peaks = ref_peaks.copy()
     merged_peaks[merged_peaks.columns.difference(pos_cols)] = np.NaN
@@ -635,11 +638,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
             peaks=peaks,
             merged_peaks_it=merged_peaks_it,
             peaks_it=peaks_it):
-        print(merged_peak, (merged_peak[0] + 1))
-        print(merged_peaks.iloc[merged_peak[0]:(merged_peak[0] + 1)])
-        print(peak)
-        print(peaks.iloc[peak[1]:peak[0]])
-        if peak[0] != peak[1]:
+        if peak[1] is not None and peak[0] != peak[1]:
             peak[0] = best_peak(
                 ref_peak=merged_peaks.iloc[merged_peak[0]],
                 peaks=peaks.iloc[peak[1]:peak[0]],
