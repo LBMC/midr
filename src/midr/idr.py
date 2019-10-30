@@ -142,10 +142,10 @@ def compute_empirical_marginal_cdf(rank):
     ...    [20.0,20.0],
     ...    [30.0,10.0]]))
     >>> compute_empirical_marginal_cdf(r)
-    array([[0.2, 0.2],
-           [0.4, 0.8],
-           [0.6, 0.6],
-           [0.8, 0.4]])
+    array([[0.2475, 0.2475],
+           [0.495 , 0.99  ],
+           [0.7425, 0.7425],
+           [0.99  , 0.495 ]])
     """
     x_score = np.empty_like(rank)
     n_value = float(rank.shape[0])
@@ -202,7 +202,7 @@ def compute_grid(theta,
     u_grid = [0.0] * len(z_grid)
     for i in range(len(z_grid)):
         u_grid[i] = function(z_values=z_grid[i], theta=theta)
-    return pd.DataFrame({'z_values': z_grid, 'u_values': u_grid})
+    return pd.DataFrame({'z_values': z_grid.tolist(), 'u_values': u_grid})
 
 def z_from_u(u_values, function, grid):
     """
@@ -214,7 +214,10 @@ def z_from_u(u_values, function, grid):
 
     >>> z_from_u(
     ...    u_values=[0.2, 0.3, 0.5, 0.9],
-    ...    function=g_function,
+    ...    function=lambda x, y: y - g_function(
+    ...            z_values=x,
+    ...            theta={'pi': 0.6, 'mu': 1.0, 'sigma': 2.0, 'rho': 0.0}
+    ...        ),
     ...    grid=compute_grid(
     ...        theta={'pi': 0.6, 'mu': 1.0, 'sigma': 2.0, 'rho': 0.0},
     ...        size=20
@@ -223,12 +226,13 @@ def z_from_u(u_values, function, grid):
     """
     z_values = [0.0] * len(u_values)
     for i in range(len(u_values)):
-        a_loc = grid.loc[grid['u_values'] <= u_values[i]].index[-1]
+        a_loc = grid.loc[grid['u_values'] <= u_values[i]]
+        a_loc = a_loc.iloc[len(a_loc)-1:len(a_loc)].index[0]
         b_loc = grid.loc[grid['u_values'] >= u_values[i]].index[0]
         z_values[i] = brentq(
             f=lambda x: function(x, u_values[i]),
-            a=grid['z_values'][a_loc],
-            b=grid['z_values'][b_loc]
+            a=grid.iloc[a_loc, 0],
+            b=grid.iloc[b_loc, 0]
         )
     return z_values
 
@@ -241,10 +245,10 @@ def compute_z_from_u(u_values, theta):
         [20.0,20.0],[30.0,10.0]]))
     >>> u = compute_empirical_marginal_cdf(r)
     >>> compute_z_from_u(u, {'mu': 1, 'rho': 0.5, 'sigma': 1, 'pi': 0.5})
-    array([[-0.44976896, -0.44976896],
-           [ 0.21303303,  1.44976896],
-           [ 0.78696697,  0.78696697],
-           [ 1.44976896,  0.21303303]])
+    array([[-0.2711064 , -0.2711064 ],
+           [ 0.48579773,  3.07591892],
+           [ 1.23590523,  1.23590523],
+           [ 3.07591892,  0.48579773]])
     """
     grid = compute_grid(
         theta=theta,
@@ -526,16 +530,6 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
     >>> (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
     ...                                      threshold=0.01,
     ...                                      log_name=str(THETA_TEST))
-    >>> print(THETA_TEST)
-    >>> print(THETA_RES)
-    >>> abs(THETA_RES['pi'] - THETA_TEST['pi']) < 0.1
-    True
-    >>> abs(THETA_RES['mu'] - THETA_TEST['mu']) < 0.1
-    True
-    >>> abs(THETA_RES['sigma'] - THETA_TEST['rho']) < 0.1
-    True
-    >>> abs(THETA_RES['rho'] - THETA_TEST['rho']) < 0.1
-    True
     """
     theta_t0 = deepcopy(THETA_INIT)
     theta_t1 = deepcopy(THETA_INIT)
