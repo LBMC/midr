@@ -15,6 +15,8 @@ NarrowPeaks files.
 
 import math
 from copy import deepcopy
+import threading
+import queue
 from scipy.stats import rankdata
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
@@ -204,7 +206,24 @@ def compute_grid(theta,
         u_grid[i] = function(z_values=z_grid[i], theta=theta)
     return pd.DataFrame({'z_values': z_grid.tolist(), 'u_values': u_grid})
 
-def z_from_u(u_values, function, grid):
+
+def z_from_u_worker(q: queue, function, z_values):
+    while True:
+        item = q.get()
+        if item is None:
+            break
+        i, grid, u_value = item
+        a_loc = grid.loc[grid['u_values'] <= u_value]
+        a_loc = a_loc.iloc[len(a_loc)-1:len(a_loc)].index[0]
+        b_loc = grid.loc[grid['u_values'] >= u_value].index[0]
+        z_values[i] = brentq(
+            f=lambda x: function(x, u_value),
+            a=grid.iloc[a_loc, 0],
+            b=grid.iloc[b_loc, 0]
+        )
+        q.task_done()
+
+def z_from_u(u_values, function, grid, thread_num = 10):
     """
     Compute z_values from u_values
     :param u_values: list of u_values
@@ -225,15 +244,29 @@ def z_from_u(u_values, function, grid):
     ... )
     """
     z_values = [0.0] * len(u_values)
-    for i in range(len(u_values)):
-        a_loc = grid.loc[grid['u_values'] <= u_values[i]]
-        a_loc = a_loc.iloc[len(a_loc)-1:len(a_loc)].index[0]
-        b_loc = grid.loc[grid['u_values'] >= u_values[i]].index[0]
-        z_values[i] = brentq(
-            f=lambda x: function(x, u_values[i]),
-            a=grid.iloc[a_loc, 0],
-            b=grid.iloc[b_loc, 0]
-        )
+    if thread_num == 0:
+        for i in range(len(u_values)):
+            a_loc = grid.loc[grid['u_values'] <= u_values[i]]
+            a_loc = a_loc.iloc[len(a_loc)-1:len(a_loc)].index[0]
+            b_loc = grid.loc[grid['u_values'] >= u_values[i]].index[0]
+            z_values[i] = brentq(
+                f=lambda x: function(x, u_values[i]),
+                a=grid.iloc[a_loc, 0],
+                b=grid.iloc[b_loc, 0]
+            )
+    else:
+        q = queue.Queue()
+        for i in range(thread_num):
+            worker = threading.Thread(
+                target=z_from_u_worker,
+                args=(q, function, z_values),
+                daemon=True,
+                name="z_from_u_" + str(i)
+            )
+            worker.start()
+        for i in range(len(u_values)):
+            q.put((i, grid, u_values[i]))
+        q.join()
     return z_values
 
 
@@ -254,8 +287,8 @@ def compute_z_from_u(u_values, theta):
         theta=theta,
         function=g_function,
         size=10000,
-        z_start=norm.ppf(np.amin(u_values), loc=theta['mu']) - 1,
-        z_stop=norm.ppf(np.amax(u_values), loc=theta['mu']) + 1
+        z_start=norm.ppf(np.amin(u_values), loc=-abs(theta['mu'])) - 1,
+        z_stop=norm.ppf(np.amax(u_values), loc=abs(theta['mu'])) + 1
     )
     z_values = np.empty_like(u_values)
     for j in range(u_values.shape[1]):
@@ -528,8 +561,7 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
     >>> (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
-    ...                                      threshold=0.01,
-    ...                                      log_name=str(THETA_TEST))
+    ...                                      threshold=0.01)
     """
     theta_t0 = deepcopy(THETA_INIT)
     theta_t1 = deepcopy(THETA_INIT)
