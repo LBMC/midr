@@ -286,7 +286,7 @@ def compute_z_from_u(u_values, theta):
     grid = compute_grid(
         theta=theta,
         function=g_function,
-        size=10000,
+        size=1000,
         z_start=norm.ppf(np.amin(u_values), loc=-abs(theta['mu'])) - 1,
         z_stop=norm.ppf(np.amax(u_values), loc=abs(theta['mu'])) + 1
     )
