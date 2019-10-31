@@ -152,11 +152,12 @@ def compute_empirical_marginal_cdf(rank):
     m_sample = float(rank.shape[1])
     # scaling_factor = n_value / (n_value + 1.0)
     # we want a max value of 0.99
-    scaling_factor = n_value / 0.99 - n_value
+    scaling_factor = n_value / 0.9999 - n_value
     scaling_factor = n_value / (n_value + scaling_factor)
     for i in range(int(n_value)):
         for j in range(int(m_sample)):
-            x_score[i][j] = (1.0 - (float(rank[i][j] - 1) / n_value)) * scaling_factor
+            x_score[i][j] = (1.0 - (float(rank[i][j] - 1) / n_value)) * \
+                scaling_factor
     return x_score
 
 
@@ -206,6 +207,15 @@ def compute_grid(theta,
 
 
 def z_from_u_worker(q: mp.JoinableQueue, function, grid, u_values, z_values):
+    """
+    z_from_u unit function in case of multiprocessing
+    :param q:
+    :param function:
+    :param grid:
+    :param u_values:
+    :param z_values:
+    :return:
+    """
     while not q.empty():
         i = q.get()
         a_loc = grid.loc[grid['u_values'] <= u_values[i]]
@@ -218,7 +228,7 @@ def z_from_u_worker(q: mp.JoinableQueue, function, grid, u_values, z_values):
         )
         q.task_done()
 
-def z_from_u(u_values, function, grid, thread_num = 10):
+def z_from_u(u_values, function, grid, thread_num = mp.cpu_count()):
     """
     Compute z_values from u_values
     :param u_values: list of u_values
@@ -617,7 +627,7 @@ def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
 
 THETA_INIT = {
     'pi': 0.5,
-    'mu': 0.0,
+    'mu': -1.0,
     'sigma': 1.0,
     'rho': 0.9
 }
