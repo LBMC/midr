@@ -154,11 +154,11 @@ def compute_empirical_marginal_cdf(rank):
     m_sample = float(rank.shape[1])
     # scaling_factor = n_value / (n_value + 1.0)
     # we want a max value of 0.99
-    scaling_factor = n_value / 0.99 - n_value
+    scaling_factor = n_value / 0.999 - n_value
     scaling_factor = n_value / (n_value + scaling_factor)
     for i in range(int(n_value)):
         for j in range(int(m_sample)):
-            x_score[i][j] = (float(rank[i][j]) / n_value) * scaling_factor
+            x_score[i][j] = (1.0 - (float(rank[i][j] - 1) / n_value)) * scaling_factor
     return x_score
 
 
@@ -207,17 +207,16 @@ def compute_grid(theta,
     return pd.DataFrame({'z_values': z_grid.tolist(), 'u_values': u_grid})
 
 
-def z_from_u_worker(q: queue, function, z_values):
+def z_from_u_worker(q: queue, function, grid, u_values, z_values):
     while True:
-        item = q.get()
-        if item is None:
+        i = q.get()
+        if i is None:
             break
-        i, grid, u_value = item
-        a_loc = grid.loc[grid['u_values'] <= u_value]
+        a_loc = grid.loc[grid['u_values'] <= u_values[i]]
         a_loc = a_loc.iloc[len(a_loc)-1:len(a_loc)].index[0]
-        b_loc = grid.loc[grid['u_values'] >= u_value].index[0]
+        b_loc = grid.loc[grid['u_values'] >= u_values[i]].index[0]
         z_values[i] = brentq(
-            f=lambda x: function(x, u_value),
+            f=lambda x: function(x, u_values[i]),
             a=grid.iloc[a_loc, 0],
             b=grid.iloc[b_loc, 0]
         )
@@ -259,13 +258,13 @@ def z_from_u(u_values, function, grid, thread_num = 10):
         for i in range(thread_num):
             worker = threading.Thread(
                 target=z_from_u_worker,
-                args=(q, function, z_values),
+                args=(q, function, grid, u_values, z_values),
                 daemon=True,
                 name="z_from_u_" + str(i)
             )
             worker.start()
         for i in range(len(u_values)):
-            q.put((i, grid, u_values[i]))
+            q.put(i)
         q.join()
     return z_values
 

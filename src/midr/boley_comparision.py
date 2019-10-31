@@ -59,9 +59,9 @@ def process_bed(file_name: str,
             file_cols=file_cols
         )
     theta, lidr = idr_func(
-        x_score=scores
+        x_score=scores,
+        log_name="boley_comparison_0.999_inv"
     )
-    print(lidr)
     print(theta)
     boley_bed.iloc[:, 11] = lidr
     output_name = PurePath(outdir).joinpath(
@@ -76,6 +76,10 @@ def process_bed(file_name: str,
 
 
 if __name__ == "__main__":
+    # process_bed(
+    #     file_name="~/projects/gandrillon/midr/data/boleyidr2",
+    #     outdir="~/projects/gandrillon/midr/results/"
+    # )
     import doctest
     doctest.testmod()
 
