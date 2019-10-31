@@ -15,8 +15,7 @@ NarrowPeaks files.
 
 import math
 from copy import deepcopy
-import threading
-import queue
+import multiprocessing as mp
 from scipy.stats import rankdata
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
@@ -25,7 +24,6 @@ from scipy.optimize import brentq
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from pynverse import inversefunc
 import log
 
 
@@ -154,7 +152,7 @@ def compute_empirical_marginal_cdf(rank):
     m_sample = float(rank.shape[1])
     # scaling_factor = n_value / (n_value + 1.0)
     # we want a max value of 0.99
-    scaling_factor = n_value / 0.999 - n_value
+    scaling_factor = n_value / 0.99 - n_value
     scaling_factor = n_value / (n_value + scaling_factor)
     for i in range(int(n_value)):
         for j in range(int(m_sample)):
@@ -207,11 +205,9 @@ def compute_grid(theta,
     return pd.DataFrame({'z_values': z_grid.tolist(), 'u_values': u_grid})
 
 
-def z_from_u_worker(q: queue, function, grid, u_values, z_values):
-    while True:
+def z_from_u_worker(q: mp.JoinableQueue, function, grid, u_values, z_values):
+    while not q.empty():
         i = q.get()
-        if i is None:
-            break
         a_loc = grid.loc[grid['u_values'] <= u_values[i]]
         a_loc = a_loc.iloc[len(a_loc)-1:len(a_loc)].index[0]
         b_loc = grid.loc[grid['u_values'] >= u_values[i]].index[0]
@@ -254,18 +250,22 @@ def z_from_u(u_values, function, grid, thread_num = 10):
                 b=grid.iloc[b_loc, 0]
             )
     else:
-        q = queue.Queue()
-        for i in range(thread_num):
-            worker = threading.Thread(
+        q = mp.JoinableQueue()
+        shared_z_values = mp.Array('f', [0] * len(u_values), lock=False)
+        list(map(lambda x: q.put(x), range(len(u_values))))
+        worker = map(
+            lambda x: mp.Process(
                 target=z_from_u_worker,
-                args=(q, function, grid, u_values, z_values),
-                daemon=True,
-                name="z_from_u_" + str(i)
-            )
-            worker.start()
-        for i in range(len(u_values)):
-            q.put(i)
+                args=(q, function, grid, u_values, shared_z_values),
+                name="z_from_u_" + str(x),
+                daemon=True
+            ),
+            range(thread_num)
+        )
+        list(map(lambda x: x.start(), worker))
         q.join()
+        list(map(lambda x: x.join(), worker))
+        z_values = list(shared_z_values)
     return z_values
 
 
@@ -623,21 +623,21 @@ THETA_INIT = {
 }
 
 if __name__ == "__main__":
-    import doctest
-    doctest.testmod()
+    # import doctest
+    # doctest.testmod()
 
-    # THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
-    # THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
-    # THETA_TEST = {'pi': 0.2,
-    #               'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
-    #               'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
-    #               'rho': 0.75}
-    # DATA = sim_m_samples(n_value=1000,
-    #                      m_sample=2,
-    #                      theta_0=THETA_TEST_0,
-    #                      theta_1=THETA_TEST_1)
-    # (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
-    #                                       threshold=0.01,
-    #                                       log_name=str(THETA_TEST))
-    # print(THETA_TEST)
-    # print(THETA_RES)
+    THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
+    THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
+    THETA_TEST = {'pi': 0.2,
+                  'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
+                  'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
+                  'rho': 0.75}
+    DATA = sim_m_samples(n_value=1000,
+                         m_sample=2,
+                         theta_0=THETA_TEST_0,
+                         theta_1=THETA_TEST_1)
+    (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
+                                          threshold=0.01,
+                                          log_name=str(THETA_TEST))
+    print(THETA_TEST)
+    print(THETA_RES)
