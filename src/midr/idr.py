@@ -152,7 +152,7 @@ def compute_empirical_marginal_cdf(rank):
     m_sample = float(rank.shape[1])
     # scaling_factor = n_value / (n_value + 1.0)
     # we want a max value of 0.99
-    scaling_factor = n_value / 0.9999 - n_value
+    scaling_factor = n_value / 0.99 - n_value
     scaling_factor = n_value / (n_value + scaling_factor)
     for i in range(int(n_value)):
         for j in range(int(m_sample)):
@@ -633,21 +633,5 @@ THETA_INIT = {
 }
 
 if __name__ == "__main__":
-    # import doctest
-    # doctest.testmod()
-
-    THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
-    THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
-    THETA_TEST = {'pi': 0.2,
-                  'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
-                  'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
-                  'rho': 0.75}
-    DATA = sim_m_samples(n_value=1000,
-                         m_sample=2,
-                         theta_0=THETA_TEST_0,
-                         theta_1=THETA_TEST_1)
-    (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
-                                          threshold=0.01,
-                                          log_name=str(THETA_TEST))
-    print(THETA_TEST)
-    print(THETA_RES)
+    import doctest
+    doctest.testmod()
