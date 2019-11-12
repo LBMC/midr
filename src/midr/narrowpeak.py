@@ -562,6 +562,56 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
     return
 
 
+def collapse_peaks(peaks: pd.DataFrame,
+                   score_col: str = narrowpeaks_score(),
+                   file_cols: list = narrowpeak_cols()) -> pd.DataFrame:
+    """
+    Copy peaks values from peaks into the corresponding position in merged_peaks
+    Peaks not found in peaks have a score of nan
+    :param peaks: pd.DataFrame of the peaks we want to merge
+    :param score_col: str with the name of the score column
+    :param pos_cols: list list of columns name for position information
+    :return: pd.DataFrame of the merged peaks
+
+    >>> collapse_peaks(
+    ... peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
+    ... )
+      chr   start    stop strand           peak  signalValue
+    0   a     200    1000      .     225.000000           20
+    1   a    1000    3000      .    2000.000000          100
+    2   a   12000   30000      .    6000.000000           30
+    3   a  100000  110000      .  100000.000000           30
+    4   a  600000  690000      .  213333.333333          400
+    """
+    def first(x):
+        """
+        return first line of x
+        :param x:
+        :return:
+        """
+        return x.iloc[0:1]
+    peaks_cols = peaks.columns.values.tolist()
+    agg_dict = {'start': sum, 'stop': sum, 'peak': np.mean, score_col: max}
+    for file_col in file_cols:
+        if file_col in peaks_cols and file_col not in agg_dict.keys():
+            agg_dict[file_col] = first
+    peaks = peaks.groupby(
+        ['chr', 'start', 'stop']
+    ).agg(
+        agg_dict
+    ).reset_index(drop=True)
+    peaks.columns = agg_dict.keys()
+    return peaks[peaks_cols]
+
 def merge_peaks(ref_peaks: pd.DataFrame,
                 peaks: pd.DataFrame,
                 score_col: str = narrowpeaks_score(),
