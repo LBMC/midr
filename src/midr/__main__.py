@@ -63,16 +63,23 @@ def parse_args(args):
     arg.add_argument("--threshold", "-t", metavar="THRESHOLD",
                      dest='threshold',
                      required=False,
-                     default=0.01,
+                     default=0.0001,
                      type=float,
                      help="Threshold value for the precision of the estimator")
     arg.add_argument("--merge_function", "-mf", metavar="MERGE_FUNCTION",
                      dest='merge_function',
                      required=False,
-                     default='max',
+                     default='sum',
                      type=str,
                      help="function to determine the score to keep for \
-                     overlpping peak ('max', 'mean', 'median', 'min')")
+                     overlpping peak ('sum', 'max', 'mean', 'median', 'min')")
+    arg.add_argument("--size", "-ws", metavar="SIZE_MERGE",
+                     dest='size_merge',
+                     required=False,
+                     default=100,
+                     type=int,
+                     help="distante to add before and after each peak before "
+                          "merging")
     arg.add_argument("--debug", "-d", action="store_true",
                      default=False,
                      help="enable debugging")
@@ -108,7 +115,10 @@ def main():
             narrowpeak.process_bed(
                 file_names=[OPTIONS.merged] + OPTIONS.files,
                 outdir=OPTIONS.output,
-                idr_func=idr.pseudo_likelihood
+                idr_func=idr.pseudo_likelihood,
+                size=OPTIONS.size_merge,
+                merge_function=OPTIONS.merge_function,
+                score_cols=OPTIONS.score
             )
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")

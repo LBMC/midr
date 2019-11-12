@@ -107,6 +107,7 @@ def readbeds(bed_paths: list,
 
 def readfiles(file_names: list,
               size: int = 100,
+              merge_function = sum,
               file_cols: list = narrowpeak_cols(),
               score_cols: str = narrowpeaks_score(),
               pos_cols: list = narrowpeaks_sort_cols()) -> list:
@@ -115,6 +116,8 @@ def readfiles(file_names: list,
     :rtype: list[pd.DataFrame]
     :param file_names: list of bed files to read
     :param size: int expand peaks of size size
+    :param merge_function: function to apply to the score column when
+    removing duplicates
     :param file_cols: list of bed file columns
     :param score_cols: column name of the score to use
     :param pos_cols: list of position column name to sort and merge on
@@ -126,6 +129,7 @@ def readfiles(file_names: list,
     return merge_beds(
         bed_files=readbeds(bed_paths=bed_paths, bed_cols=file_cols),
         size=size,
+        merge_function=merge_function,
         score_col=score_cols,
         pos_cols=pos_cols
     )
@@ -566,12 +570,15 @@ def iter_peaks(merged_peaks: pd.DataFrame, peaks: pd.DataFrame, merged_peaks_it,
 
 
 def collapse_peaks(peaks: pd.DataFrame,
+                   merge_function = sum,
                    score_col: str = narrowpeaks_score(),
                    file_cols: list = narrowpeak_cols()) -> pd.DataFrame:
     """
     Copy peaks values from peaks into the corresponding position in merged_peaks
     Peaks not found in peaks have a score of nan
     :param peaks: pd.DataFrame of the peaks we want to merge
+    :param merge_function: function to apply to the score column when
+    removing duplicates
     :param score_col: str with the name of the score column
     :param pos_cols: list list of columns name for position information
     :return: pd.DataFrame of the merged peaks
@@ -603,7 +610,7 @@ def collapse_peaks(peaks: pd.DataFrame,
         """
         return x.iloc[0:1]
     peaks_cols = peaks.columns.values.tolist()
-    agg_dict = {'peak': np.mean, score_col: sum}
+    agg_dict = {'peak': np.mean, score_col: merge_function}
     for file_col in file_cols:
         if file_col in peaks_cols and file_col not in agg_dict.keys():
             agg_dict[file_col] = first
@@ -665,6 +672,7 @@ def expand_peaks(peaks: pd.DataFrame, size: int = 100) -> pd.DataFrame:
 def merge_peaks(ref_peaks: pd.DataFrame,
                 peaks: pd.DataFrame,
                 size: int = 100,
+                merge_function = sum,
                 score_col: str = narrowpeaks_score(),
                 pos_cols: list = narrowpeaks_sort_cols()) -> pd.DataFrame:
     """
@@ -673,6 +681,8 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     :param ref_peaks: pd.DataFrame which is a copy of ref_peaks
     :param peaks: pd.DataFrame of the peaks we want to merge
     :param size: int expand peaks of size size
+    :param merge_function: function to apply to the score column when
+    removing duplicates
     :param score_col: str with the name of the score column
     :param pos_cols: list list of columns name for position information
     :return: pd.DataFrame of the merged peaks
@@ -729,8 +739,19 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     3   a  100000  110000      .  100000         30.0
     4   a  200000  230000      .  214000        900.0
     """
-    merged_peaks = collapse_peaks(ref_peaks.copy())
-    peaks = expand_peaks(collapse_peaks(peaks), size=size)
+    merged_peaks = collapse_peaks(
+        peaks=ref_peaks.copy(),
+        merge_function=merge_function,
+        score_col=score_col
+    )
+    peaks = expand_peaks(
+        collapse_peaks(
+            peaks=peaks,
+            merge_function=merge_function,
+            score_col=score_col
+        ),
+        size=size
+    )
     merged_peaks[merged_peaks.columns.difference(pos_cols)] = np.NaN
     merged_peaks_it = iter(range(len(merged_peaks)))
     peaks_it = iter(range(len(peaks)))
@@ -755,6 +776,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
 
 
 def merge_beds(bed_files: list, ref_pos=0,
+               merge_function = sum,
                size = 100,
                score_col: str = narrowpeaks_score(),
                pos_cols: list = narrowpeaks_sort_cols()) -> list:
@@ -762,6 +784,8 @@ def merge_beds(bed_files: list, ref_pos=0,
     Merge a list of bed according to position in a reference in the list
     :param bed_files: list of pd.DataFrame representing bed files
     :param ref_pos: position of the reference bed in the bed_files list
+    :param merge_function: function to apply to the score column when
+    removing duplicates
     :param size: int expand peaks of size size
     :param score_col: str with the name of the score column
     :param pos_cols: list list of columns name for position information
@@ -777,6 +801,7 @@ def merge_beds(bed_files: list, ref_pos=0,
                 merge_peaks(
                     ref_peaks=bed_files[ref_pos],
                     peaks=bed,
+                    merge_function=merge_function,
                     size=size,
                     score_col=score_col,
                     pos_cols=pos_cols
@@ -825,6 +850,7 @@ def process_bed(file_names: list,
                 outdir: str,
                 idr_func: Callable[[np.array], np.array],
                 size: int = 100,
+                merge_function = sum,
                 file_cols: list = narrowpeak_cols(),
                 score_cols: str = narrowpeaks_score(),
                 pos_cols: list = narrowpeaks_sort_cols()):
@@ -834,6 +860,8 @@ def process_bed(file_names: list,
     :param outdir: output directory
     :param idr_func: idr function to apply
     :param size: int expand peaks of size size
+    :param merge_function: function to apply to the score column when
+    removing duplicates
     :param file_cols: list of bed file columns
     :param score_cols: column name of the score to use
     :param pos_cols: list of position column name to sort and merge on
@@ -846,6 +874,7 @@ def process_bed(file_names: list,
     bed_files = readfiles(
         file_names=file_names,
         size=size,
+        merge_function=merge_function,
         file_cols=file_cols,
         score_cols=score_cols,
         pos_cols=pos_cols,
@@ -856,6 +885,7 @@ def process_bed(file_names: list,
            score_col=score_cols
        )
     )
+    print(bed_files.shape)
     print(theta)
     writefiles(
         bed_files=bed_files,
