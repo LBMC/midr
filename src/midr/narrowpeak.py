@@ -775,6 +775,120 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     return merged_peaks
 
 
+def merge_peaks2(ref_peaks: pd.DataFrame,
+                peaks: pd.DataFrame,
+                size: int = 100,
+                merge_function = sum,
+                score_col: str = narrowpeaks_score(),
+                pos_cols: list = narrowpeaks_sort_cols()) -> pd.DataFrame:
+    """
+    Copy peaks values from peaks into the corresponding position in merged_peaks
+    Peaks not found in peaks have a score of nan
+    :param ref_peaks: pd.DataFrame which is a copy of ref_peaks
+    :param peaks: pd.DataFrame of the peaks we want to merge
+    :param size: int expand peaks of size size
+    :param merge_function: function to apply to the score column when
+    removing duplicates
+    :param score_col: str with the name of the score column
+    :param pos_cols: list list of columns name for position information
+    :return: pd.DataFrame of the merged peaks
+
+    >>> merge_peaks2(
+    ... ref_peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [50, 100, 1000, 4000, 100000, 200000],
+    ... 'stop': [60, 500, 3000, 10000, 110000, 230000],
+    ... 'strand': [".", ".", ".", ".", ".", "."],
+    ... 'peak': [55, 250, 2000, 7000, 100000, 215000],
+    ... 'signalValue': [10, 20, 100, 15, 30, 200]}),
+    ... peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
+    ... )
+      chr   start    stop strand    peak  signalValue
+    0   a      50      60      .      55         35.0
+    1   a     100     500      .     250          NaN
+    2   a    1000    3000      .    2000        100.0
+    3   a    4000   10000      .    7000         59.0
+    4   a  100000  110000      .  100000         30.0
+    5   a  200000  230000      .  215000        900.0
+    >>> merge_peaks2(
+    ... ref_peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 100000, 200000, 200000],
+    ... 'stop': [500, 500, 3000, 10000, 110000, 230000, 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 270, 2000, 7000, 100000, 213000, 215000],
+    ... 'signalValue': [20, 30, 100, 15, 30, 150, 200]}),
+    ... peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 280, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
+    ... )
+      chr   start    stop strand    peak  signalValue
+    0   a     100     500      .     260         35.0
+    1   a    1000    3000      .    2000        100.0
+    2   a    4000   10000      .    7000         59.0
+    3   a  100000  110000      .  100000         30.0
+    4   a  200000  230000      .  214000        900.0
+    """
+    merged_peaks = collapse_peaks(
+        peaks=ref_peaks.copy(),
+        merge_function=merge_function,
+        score_col=score_col
+    )
+    peaks = expand_peaks(
+        collapse_peaks(
+            peaks=peaks,
+            merge_function=merge_function,
+            score_col=score_col
+        ),
+        size=size
+    )
+    merged_peaks[merged_peaks.columns.difference(pos_cols)] = np.NaN
+    merged_peaks_it = iter(range(len(merged_peaks)))
+    peaks_it = iter(range(len(peaks)))
+    def peak_dist(x):
+        x['peak_y'] = abs(x['peak_x'] - x['peak_y'])
+        return x
+    def first(x):
+        """
+        return first line of x
+        :param x:
+        :return:
+        """
+        return x.iloc[0:1]
+    agg_dict = {}
+    for col in ['chr'] + list(map(lambda x: x + "_y", peaks.columns[1:])):
+        agg_dict[col] = first
+    agg_dict['peak_y'] = min
+    return merged_peaks.merge(
+        right=peaks,
+        how="left",
+        on="chr"
+    ).apply(
+        func=peak_dist,
+        axis=1
+    ).groupby(
+        ['chr'] + list(map(lambda x: x + "_x", pos_cols[1:]))
+    ).aggregate(
+       agg_dict
+    ).reset_index(drop=True)
+
+
 def merge_beds(bed_files: list, ref_pos=0,
                merge_function = sum,
                size = 100,
@@ -885,7 +999,6 @@ def process_bed(file_names: list,
            score_col=score_cols
        )
     )
-    print(bed_files.shape)
     print(theta)
     writefiles(
         bed_files=bed_files,
