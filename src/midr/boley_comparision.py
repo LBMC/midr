@@ -60,7 +60,7 @@ def process_bed(file_name: str,
         )
     theta, lidr = idr_func(
         x_score=scores,
-        log_name="boley_comparison_0.999_inv"
+        log_name="boley_comparison_t_0.0001_0.99_inv_process"
     )
     print(theta)
     boley_bed.iloc[:, 11] = lidr
@@ -76,10 +76,6 @@ def process_bed(file_name: str,
 
 
 if __name__ == "__main__":
-    # process_bed(
-    #     file_name="~/projects/gandrillon/midr/data/boleyidr2",
-    #     outdir="~/projects/gandrillon/midr/results/"
-    # )
     import doctest
     doctest.testmod()
 

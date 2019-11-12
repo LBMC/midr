@@ -549,7 +549,7 @@ def em_pseudo_data(z_values,
     return theta_t1, k_state, logger
 
 
-def pseudo_likelihood(x_score, threshold=0.001, log_name=""):
+def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     """
     pseudo likelhood optimization for the copula model parameters
     :param x_score np.array of score (measures x samples)
