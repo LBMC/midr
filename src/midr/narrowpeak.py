@@ -106,6 +106,7 @@ def readbeds(bed_paths: list,
 
 
 def readfiles(file_names: list,
+              size: int = 100,
               file_cols: list = narrowpeak_cols(),
               score_cols: str = narrowpeaks_score(),
               pos_cols: list = narrowpeaks_sort_cols()) -> list:
@@ -113,6 +114,7 @@ def readfiles(file_names: list,
     Reads a list of bed filenames and return a list of pd.DataFrame
     :rtype: list[pd.DataFrame]
     :param file_names: list of bed files to read
+    :param size: int expand peaks of size size
     :param file_cols: list of bed file columns
     :param score_cols: column name of the score to use
     :param pos_cols: list of position column name to sort and merge on
@@ -123,6 +125,7 @@ def readfiles(file_names: list,
         bed_paths.append(PurePath(file_name))
     return merge_beds(
         bed_files=readbeds(bed_paths=bed_paths, bed_cols=file_cols),
+        size=size,
         score_col=score_cols,
         pos_cols=pos_cols
     )
@@ -586,11 +589,11 @@ def collapse_peaks(peaks: pd.DataFrame,
     ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
     ... )
       chr   start    stop strand           peak  signalValue
-    0   a     200    1000      .     225.000000           20
+    0   a     100     500      .     225.000000           35
     1   a    1000    3000      .    2000.000000          100
-    2   a   12000   30000      .    6000.000000           30
+    2   a    4000   10000      .    6000.000000           59
     3   a  100000  110000      .  100000.000000           30
-    4   a  600000  690000      .  213333.333333          400
+    4   a  200000  230000      .  213333.333333          900
     """
     def first(x):
         """
@@ -600,7 +603,7 @@ def collapse_peaks(peaks: pd.DataFrame,
         """
         return x.iloc[0:1]
     peaks_cols = peaks.columns.values.tolist()
-    agg_dict = {'start': sum, 'stop': sum, 'peak': np.mean, score_col: max}
+    agg_dict = {'peak': np.mean, score_col: sum}
     for file_col in file_cols:
         if file_col in peaks_cols and file_col not in agg_dict.keys():
             agg_dict[file_col] = first
@@ -612,8 +615,56 @@ def collapse_peaks(peaks: pd.DataFrame,
     peaks.columns = agg_dict.keys()
     return peaks[peaks_cols]
 
+
+def expand_peaks(peaks: pd.DataFrame, size: int = 100) -> pd.DataFrame:
+    """
+    enlarge peaks of size
+    :param peaks: pd.DataFrame
+    :param size: int
+    :return: pd.DataFrame
+    >>> expand_peaks(
+    ... peaks=pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
+    ... )
+      chr   start    stop strand    peak  signalValue
+    0   a       0     600      .     250           20
+    1   a       0     600      .     200           15
+    2   a     900    3100      .    2000          100
+    3   a    3900   10100      .    5000           15
+    4   a    3900   10100      .    6000           30
+    5   a    3900   10100      .    7000           14
+    6   a   99900  110100      .  100000           30
+    7   a  199900  230100      .  205000          200
+    8   a  199900  230100      .  215000          300
+    9   a  199900  230100      .  220000          400
+    """
+    def expand(x, size):
+        """
+        function to exand one peak
+        :param x:
+        :param size:
+        :return:
+        """
+        x['start'] = max([x['start'] - size, 0])
+        x['stop'] += size
+        return x
+    return peaks.apply(
+        func=lambda x: expand(x, size=size),
+        axis=1
+    )
+
+
 def merge_peaks(ref_peaks: pd.DataFrame,
                 peaks: pd.DataFrame,
+                size: int = 100,
                 score_col: str = narrowpeaks_score(),
                 pos_cols: list = narrowpeaks_sort_cols()) -> pd.DataFrame:
     """
@@ -621,6 +672,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     Peaks not found in peaks have a score of nan
     :param ref_peaks: pd.DataFrame which is a copy of ref_peaks
     :param peaks: pd.DataFrame of the peaks we want to merge
+    :param size: int expand peaks of size size
     :param score_col: str with the name of the score column
     :param pos_cols: list list of columns name for position information
     :return: pd.DataFrame of the merged peaks
@@ -645,12 +697,12 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
     ... )
       chr   start    stop strand    peak  signalValue
-    0   a      50      60      .      55          NaN
-    1   a     100     500      .     250         20.0
+    0   a      50      60      .      55         35.0
+    1   a     100     500      .     250          NaN
     2   a    1000    3000      .    2000        100.0
-    3   a    4000   10000      .    7000         14.0
+    3   a    4000   10000      .    7000         59.0
     4   a  100000  110000      .  100000         30.0
-    5   a  200000  230000      .  215000        300.0
+    5   a  200000  230000      .  215000        900.0
     >>> merge_peaks(
     ... ref_peaks=pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a'],
@@ -671,15 +723,14 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
     ... )
       chr   start    stop strand    peak  signalValue
-    0   a     100     500      .     250         20.0
-    1   a     100     500      .     270         15.0
-    2   a    1000    3000      .    2000        100.0
-    3   a    4000   10000      .    7000         14.0
-    4   a  100000  110000      .  100000         30.0
-    5   a  200000  230000      .  213000        200.0
-    6   a  200000  230000      .  215000        300.0
+    0   a     100     500      .     260         35.0
+    1   a    1000    3000      .    2000        100.0
+    2   a    4000   10000      .    7000         59.0
+    3   a  100000  110000      .  100000         30.0
+    4   a  200000  230000      .  214000        900.0
     """
-    merged_peaks = ref_peaks.copy()
+    merged_peaks = collapse_peaks(ref_peaks.copy())
+    peaks = expand_peaks(collapse_peaks(peaks), size=size)
     merged_peaks[merged_peaks.columns.difference(pos_cols)] = np.NaN
     merged_peaks_it = iter(range(len(merged_peaks)))
     peaks_it = iter(range(len(peaks)))
@@ -704,12 +755,14 @@ def merge_peaks(ref_peaks: pd.DataFrame,
 
 
 def merge_beds(bed_files: list, ref_pos=0,
+               size = 100,
                score_col: str = narrowpeaks_score(),
                pos_cols: list = narrowpeaks_sort_cols()) -> list:
     """
     Merge a list of bed according to position in a reference in the list
     :param bed_files: list of pd.DataFrame representing bed files
     :param ref_pos: position of the reference bed in the bed_files list
+    :param size: int expand peaks of size size
     :param score_col: str with the name of the score column
     :param pos_cols: list list of columns name for position information
     :return: a list of bed files (pd.DataFrame)
@@ -724,6 +777,7 @@ def merge_beds(bed_files: list, ref_pos=0,
                 merge_peaks(
                     ref_peaks=bed_files[ref_pos],
                     peaks=bed,
+                    size=size,
                     score_col=score_col,
                     pos_cols=pos_cols
                 )
@@ -770,6 +824,7 @@ def narrowpeaks2array(np_list: list,
 def process_bed(file_names: list,
                 outdir: str,
                 idr_func: Callable[[np.array], np.array],
+                size: int = 100,
                 file_cols: list = narrowpeak_cols(),
                 score_cols: str = narrowpeaks_score(),
                 pos_cols: list = narrowpeaks_sort_cols()):
@@ -778,6 +833,7 @@ def process_bed(file_names: list,
     :param file_names: list of files path
     :param outdir: output directory
     :param idr_func: idr function to apply
+    :param size: int expand peaks of size size
     :param file_cols: list of bed file columns
     :param score_cols: column name of the score to use
     :param pos_cols: list of position column name to sort and merge on
@@ -789,6 +845,7 @@ def process_bed(file_names: list,
         makedirs(outdir)
     bed_files = readfiles(
         file_names=file_names,
+        size=size,
         file_cols=file_cols,
         score_cols=score_cols,
         pos_cols=pos_cols,
