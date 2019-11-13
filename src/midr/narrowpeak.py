@@ -813,8 +813,8 @@ def merge_peaks2(ref_peaks: pd.DataFrame,
     ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]})
     ... )
       chr   start    stop strand    peak  signalValue
-    0   a      50      60      .      55         35.0
-    1   a     100     500      .     250          NaN
+    0   a      50      60      .      55          NaN
+    1   a     100     500      .     250         35.0
     2   a    1000    3000      .    2000        100.0
     3   a    4000   10000      .    7000         59.0
     4   a  100000  110000      .  100000         30.0
@@ -851,47 +851,36 @@ def merge_peaks2(ref_peaks: pd.DataFrame,
         score_col=score_col
     )
     peaks = expand_peaks(
-        collapse_peaks(
-            peaks=peaks,
-            merge_function=merge_function,
-            score_col=score_col
-        ),
+        peaks=peaks,
         size=size
     )
     merged_peaks[merged_peaks.columns.difference(pos_cols)] = np.NaN
     merged_peaks_it = iter(range(len(merged_peaks)))
-    peaks_it = iter(range(len(peaks)))
-    def peak_dist(x):
-        x['peak_y'] = abs(x['peak_x'] - x['peak_y'])
-        return x
-    def first(x):
-        """
-        return first line of x
-        :param x:
-        :return:
-        """
-        return x.iloc[0:1]
-    agg_dict = {}
-    for col in ['chr'] + list(map(lambda x: x + "_y", peaks.columns[1:])):
-        agg_dict[col] = first
-    agg_dict['peak_y'] = min
-    return merged_peaks.merge(
-        right=peaks,
-        how="left",
-        on="chr"
-    ).apply(
-        func=peak_dist,
-        axis=1
-    ).groupby(
-        ['chr'] + list(map(lambda x: x + "_x", pos_cols[1:]))
-    ).aggregate(
-       agg_dict
-    ).reset_index(drop=True)
+    score_col_pos = merged_peaks.columns.tolist().index(score_col)
+    def peak_dist(peak, merged):
+        peak['peak'] = abs(
+            peak['peak'] - merged['peak']
+        )
+        return peak
+    for merged_peak in merged_peaks_it:
+        merged_peaks.iat[merged_peak, score_col_pos] = peaks[
+            (merged_peaks.iloc[merged_peak]['peak'] >= peaks['start']) &
+            (merged_peaks.iloc[merged_peak]['peak'] <= peaks['stop']) &
+            (merged_peaks.iloc[merged_peak]['chr'] == peaks['chr'])
+        ].apply(
+            func=lambda x: peak_dist(x, merged_peaks.iloc[merged_peak]),
+            axis=1
+        ).agg(
+            {score_col: sum}
+        )
+        if merged_peaks.iat[merged_peak, score_col_pos] == 0.0:
+            merged_peaks.iat[merged_peak, score_col_pos] = np.NaN
+    return merged_peaks
 
 
 def merge_beds(bed_files: list, ref_pos=0,
-               merge_function = sum,
-               size = 100,
+               merge_function=sum,
+               size=100,
                score_col: str = narrowpeaks_score(),
                pos_cols: list = narrowpeaks_sort_cols()) -> list:
     """
