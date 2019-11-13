@@ -139,7 +139,8 @@ def readfiles(file_names: list,
         size=size,
         merge_function=merge_function,
         score_col=score_cols,
-        pos_cols=pos_cols
+        pos_cols=pos_cols,
+        file_cols=file_cols
     )
 
 
@@ -508,10 +509,12 @@ def merge_peaks(ref_peaks: pd.DataFrame,
 def merge_beds(bed_files: list, ref_pos=0,
                merge_function=sum,
                size=100,
+               file_cols: list = None,
                score_col: str = None,
                pos_cols: list = None) -> list:
     """
     Merge a list of bed according to position in a reference in the list
+    :param file_cols:
     :param bed_files: list of pd.DataFrame representing bed files
     :param ref_pos: position of the reference bed in the bed_files list
     :param merge_function: function to apply to the score column when
@@ -533,6 +536,7 @@ def merge_beds(bed_files: list, ref_pos=0,
                     peaks=bed,
                     merge_function=merge_function,
                     size=size,
+                    file_cols=file_cols,
                     score_col=score_col,
                     pos_cols=pos_cols
                 )
@@ -581,7 +585,7 @@ def process_bed(file_names: list,
                 idr_func: Callable[[np.array], np.array],
                 size: int = 100,
                 merge_function=sum,
-                file_cols=None,
+                file_cols: list = None,
                 score_cols: str = None,
                 pos_cols: list = None):
     """

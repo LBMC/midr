@@ -14,7 +14,7 @@ import idr
 
 
 def parse_boley(file_name: str,
-                file_cols: list = narrowpeak.narrowpeak_cols()):
+                file_cols: list = None):
     """
     convert boley idr output file into midr input
     :param file_name: boley idr output file path
@@ -30,17 +30,18 @@ def parse_boley(file_name: str,
     )
     bed_number = int((boley_bed.shape[1] - (len(file_cols) + 2)) / 4)
     scores = list()
-    np_file: pd.DataFrame
     for bed in range(bed_number):
         score_col = len(file_cols) + 2 + bed * 4 + 2
         scores.append(np.array(boley_bed[score_col].to_numpy()))
     scores = np.stack(scores, axis=-1)
     return scores, boley_bed
 
-def process_bed(file_name: str,
-                outdir: str,
-                idr_func: Callable[[np.array], np.array] = idr.pseudo_likelihood,
-                file_cols: list = narrowpeak.narrowpeak_cols()):
+
+def process_bed(
+        file_name: str,
+        outdir: str,
+        idr_func: Callable[[np.array], np.array] = idr.pseudo_likelihood,
+        file_cols: list = None):
     """
     Process a list of bed files names with the first names the merged bed files
     :param file_name: file path
@@ -51,16 +52,17 @@ def process_bed(file_name: str,
 
     >>> process_bed(
     ...     file_name="~/projects/gandrillon/midr/data/boleyidr2",
-    ...     outdir="~/projects/gandrillon/midr/results/"
+    ...     outdir="~/projects/gandrillon/midr/results/",
+    ...     file_cols=narrowpeak.narrowpeaks_cols()
     ... )
     """
     scores, boley_bed = parse_boley(
-            file_name=file_name,
-            file_cols=file_cols
-        )
+        file_name=file_name,
+        file_cols=file_cols
+    )
     theta, lidr = idr_func(
-        x_score=scores,
-        log_name="boley_comparison_t_0.0001_0.99_inv_process"
+        **{'x_score': scores,
+           'log_name': "boley_comparison_t_0.0001_0.99_inv_process"}
     )
     print(theta)
     boley_bed.iloc[:, 11] = lidr
@@ -78,4 +80,3 @@ def process_bed(file_name: str,
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
-
