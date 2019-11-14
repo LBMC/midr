@@ -119,6 +119,7 @@ def main():
                 size=OPTIONS.size_merge,
                 merge_function=OPTIONS.merge_function,
                 score_cols=OPTIONS.score,
+                threshold=OPTIONS.threshold,
                 file_cols=narrowpeak.narrowpeaks_cols(),
                 pos_cols=narrowpeak.narrowpeaks_sort_cols()
             )
