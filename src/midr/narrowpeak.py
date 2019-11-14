@@ -50,11 +50,18 @@ def readbed(bed_path: PurePath,
     """
     assert path.isfile(str(bed_path)), "File {str(bed_path)} doesn't exist"
     assert access(str(bed_path), R_OK), "File {str(bed_path)} isn't readable"
+
+    def move_peak(x):
+       x['peak'] += x['start']
+       return x
     return pd.read_csv(
         bed_path,
         sep='\t',
         header=None,
         names=bed_cols
+    ).apply(
+        func=move_peak,
+        axis=1
     )
 
 
@@ -414,7 +421,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'stop': [60, 500, 3000, 10000, 110000, 230000],
     ... 'strand': [".", ".", ".", ".", ".", "."],
     ... 'peak': [55, 250, 2000, 7000, 100000, 215000],
-    ... 'signalValue': [10, 20, 100, 15, 30, 200]}),
+    ... 'signalValue': [10.0, 20.0, 100.0, 15.0, 30.0, 200.0]}),
     ... peaks=pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
     ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
@@ -424,18 +431,19 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
     ... 'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
     ... 220000],
-    ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]}),
+    ... 'signalValue': [20.0, 15.0, 100.0, 15.0, 30.0, 14.0, 30.0, 200.0,
+    ... 300.0, 400.0]}),
     ... score_col=narrowpeaks_score(),
     ... file_cols=narrowpeaks_cols(),
     ... pos_cols=narrowpeaks_sort_cols()
     ... )
       chr   start    stop strand    peak  signalValue
-    0   a      50      60      .      55         35.0
-    1   a     100     500      .     250         35.0
+    0   a      50      60      .      55         15.0
+    1   a     100     500      .     250         20.0
     2   a    1000    3000      .    2000        100.0
-    3   a    4000   10000      .    7000         59.0
+    3   a    4000   10000      .    7000         14.0
     4   a  100000  110000      .  100000         30.0
-    5   a  200000  230000      .  215000        900.0
+    5   a  200000  230000      .  215000        300.0
     >>> merge_peaks(
     ... ref_peaks=pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a'],
@@ -443,7 +451,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'stop': [500, 500, 3000, 10000, 110000, 230000, 230000],
     ... 'strand': [".", ".", ".", ".", ".", ".", "."],
     ... 'peak': [250, 270, 2000, 7000, 100000, 213000, 215000],
-    ... 'signalValue': [20, 30, 100, 15, 30, 150, 200]}),
+    ... 'signalValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0]}),
     ... peaks=pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
     ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
@@ -453,17 +461,18 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
     ... 'peak': [250, 280, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
     ... 220000],
-    ... 'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]}),
+    ... 'signalValue': [20.0, 15.0, 100.0, 15.0, 30.0, 14.0, 30.0, 200.0,
+    ... 300.0, 400.0]}),
     ... score_col=narrowpeaks_score(),
     ... file_cols=narrowpeaks_cols(),
     ... pos_cols=narrowpeaks_sort_cols()
     ... )
       chr   start    stop strand    peak  signalValue
-    0   a     100     500      .     260         35.0
+    0   a     100     500      .     260         20.0
     1   a    1000    3000      .    2000        100.0
-    2   a    4000   10000      .    7000         59.0
+    2   a    4000   10000      .    7000         14.0
     3   a  100000  110000      .  100000         30.0
-    4   a  200000  230000      .  214000        900.0
+    4   a  200000  230000      .  214000        300.0
     """
     merged_peaks = collapse_peaks(
         peaks=ref_peaks.copy(),
@@ -476,33 +485,31 @@ def merge_peaks(ref_peaks: pd.DataFrame,
         size=size
     )
     merged_peaks[merged_peaks.columns.difference(pos_cols)] = np.NaN
-    merged_peaks_it = iter(range(len(merged_peaks)))
-    score_col_pos = merged_peaks.columns.tolist().index(score_col)
 
-    def peak_dist(peak, merged):
-        """
-        sub function to compute dist between peak
-        :param peak: pd.DataFrame list of peak
-        :param merged: pd.Series ref peak
-        :return: int the distance beetween the peaks
-        """
-        peak['peak'] = abs(
-            peak['peak'] - merged['peak']
-        )
-        return peak
-    for merged_peak in merged_peaks_it:
-        merged_peaks.iat[merged_peak, score_col_pos] = peaks[
-            (merged_peaks.iloc[merged_peak]['peak'] >= peaks['start']) &
-            (merged_peaks.iloc[merged_peak]['peak'] <= peaks['stop']) &
-            (merged_peaks.iloc[merged_peak]['chr'] == peaks['chr'])
-        ].apply(
-            func=lambda x: peak_dist(x, merged_peaks.iloc[merged_peak]),
-            axis=1
-        ).agg(
-            {score_col: sum}
-        )
-        if merged_peaks.iat[merged_peak, score_col_pos] == 0.0:
-            merged_peaks.iat[merged_peak, score_col_pos] = np.NaN
+    def min_dist(merged_peak, peaks_list, score_name):
+        scores = peaks_list[
+            (merged_peak['peak'] >= peaks_list['start']) &
+            (merged_peak['peak'] <= peaks_list['stop']) &
+            (merged_peak['chr'] == peaks_list['chr'])
+        ].copy()
+        if scores.empty:
+            return np.NaN
+        else:
+            scores['dist'] = scores.apply(
+                func=lambda x: abs(x['peak'] - merged_peak['peak']),
+                axis=1
+            )
+
+            scores = scores.loc[scores['dist'].idxmin()]
+            return scores[score_col]
+    merged_peaks[score_col] = merged_peaks.apply(
+        func=lambda x: min_dist(
+            merged_peak=x,
+            peaks_list=peaks,
+            score_name=score_col
+        ),
+        axis=1
+    )
     return merged_peaks
 
 
@@ -523,6 +530,52 @@ def merge_beds(bed_files: list, ref_pos=0,
     :param score_col: str with the name of the score column
     :param pos_cols: list list of columns name for position information
     :return: a list of bed files (pd.DataFrame)
+    >>> merge_beds(
+    ... bed_files=[
+    ... pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 100000, 200000, 200000],
+    ... 'stop': [500, 500, 3000, 10000, 110000, 230000, 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 270, 2000, 7000, 100000, 213000, 215000],
+    ... 'signalValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0]}),
+    ... pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 280, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'signalValue': [20.0, 15.0, 15.0, 30.0, 14.0, 30.0, 200.0, 300.0,
+    ... 400.0]}),
+    ... pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 280, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'signalValue': [21.0, 16.0, 101.0, 16.0, 31.0, 15.0, 31.0, 201.0,
+    ... 301.0, 401.0]})
+    ... ],
+    ... score_col=narrowpeaks_score(),
+    ... file_cols=narrowpeaks_cols(),
+    ... pos_cols=narrowpeaks_sort_cols()
+    ... )
+    [  chr   start    stop strand    peak  signalValue
+    0   a     100     500      .     260         20.0
+    2   a    4000   10000      .    7000         14.0
+    3   a  100000  110000      .  100000         30.0
+    4   a  200000  230000      .  214000        300.0,   chr   start    stop \
+strand    peak  signalValue
+    0   a     100     500      .     260         21.0
+    2   a    4000   10000      .    7000         15.0
+    3   a  100000  110000      .  100000         31.0
+    4   a  200000  230000      .  214000        301.0]
     """
     merged_files = []
     nan_pos = []
@@ -553,21 +606,20 @@ def merge_beds(bed_files: list, ref_pos=0,
 
 
 def narrowpeaks2array(np_list: list,
-                      score_col: str = None) -> np.array:
+                      score_cols: str = None) -> np.array:
     """
     convert a list of pd.DataFrame representing bed files to an np.array of
     their score column
     :type np_list: list[pd.DataFrame]
-    :type score_col: str colname of the score column
+    :type score_cols: str colname of the score column
     :param np_list: list of pd.DataFrame representing bed files
-    :param score_col: score column to use to compute IDR
     :return np.array whose columns are the score columns of the bed files
 
     >>> narrowpeaks2array(np_list=[
     ... pd.DataFrame({'peak': [90, 105, 105], 'signalValue': [5, 20, 10]}),
     ... pd.DataFrame({'peak': [90, 105, 105], 'signalValue': [5, 21, 11]}),
     ... pd.DataFrame({'peak': [90, 105, 105], 'signalValue': [5, 22, 12]})],
-    ... score_col=narrowpeaks_score()
+    ... score_cols=narrowpeaks_score()
     ... )
     array([[ 5,  5,  5],
            [20, 21, 22],
@@ -575,7 +627,7 @@ def narrowpeaks2array(np_list: list,
     """
     scores = list()
     for np_file in np_list:
-        scores.append(np.array(np_file[score_col].to_numpy()))
+        scores.append(np.array(np_file[score_cols].to_numpy()))
     scores = np.stack(scores, axis=-1)
     return scores
 
@@ -585,11 +637,13 @@ def process_bed(file_names: list,
                 idr_func: Callable[[np.array], np.array],
                 size: int = 100,
                 merge_function=sum,
+                threshold: float = 0.0001,
                 file_cols: list = None,
                 score_cols: str = None,
                 pos_cols: list = None):
     """
     Process a list of bed files names with the first names the merged bed files
+    :param threshold:
     :param file_names: list of files path
     :param outdir: output directory
     :param idr_func: idr function to apply
@@ -618,8 +672,9 @@ def process_bed(file_names: list,
     theta, local_idr = idr_func(
        narrowpeaks2array(
            np_list=bed_files,
-           score_col=score_cols
-       )
+           score_cols=score_cols
+       ),
+        threshold=threshold
     )
     print(theta)
     writefiles(
@@ -631,5 +686,27 @@ def process_bed(file_names: list,
 
 
 if __name__ == "__main__":
+    merge_peaks(
+         ref_peaks=pd.DataFrame({
+         'chr': ['a', 'a', 'a', 'a', 'a', 'a'],
+     'start': [50, 100, 1000, 4000, 100000, 200000],
+     'stop': [60, 500, 3000, 10000, 110000, 230000],
+     'strand': [".", ".", ".", ".", ".", "."],
+     'peak': [55, 250, 2000, 7000, 100000, 215000],
+     'signalValue': [10, 20, 100, 15, 30, 200]}),
+     peaks=pd.DataFrame({
+         'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+     'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+                   200000],
+     'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+                  230000],
+     'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+     'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+                  220000],
+     'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]}),
+     score_col=narrowpeaks_score(),
+                   file_cols=narrowpeaks_cols(),
+                                 pos_cols=narrowpeaks_sort_cols()
+         )
     import doctest
     doctest.testmod()
