@@ -23,7 +23,6 @@ from scipy.stats import bernoulli
 from scipy.optimize import brentq
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 import log
 
 
@@ -114,21 +113,10 @@ def compute_rank(x_score):
            [3, 3],
            [4, 2]])
     """
-    plt.scatter(x_score[:, 0],
-                x_score[:, 1])
-    plt.ylabel('rank file 2')
-    plt.xlabel('rank file 1')
-    plt.savefig("test_plot_0.pdf")
     rank = np.empty_like(x_score)
     for j in range(x_score.shape[1]):
         # we want the rank to start at 1
         rank[:, j] = rankdata(x_score[:, j], method="ordinal")
-
-    plt.scatter(rank[:, 0],
-                rank[:, 1])
-    plt.ylabel('rank file 2')
-    plt.xlabel('rank file 1')
-    plt.savefig("test_plot_1.pdf")
     return rank
 
 
@@ -613,15 +601,15 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
             logl=logl_t1,
             pseudo=True
         )
-        log.plot_log(logger, str(log_name) + "_log.pdf")
-        log.plot_classif(
-            x_score,
-            u_values,
-            z_values,
-            lidr,
-            str(log_name) + "_classif.pdf"
-        )
-        log.LOGGER.debug("%s", str(theta_t1))
+    log.plot_log(logger, str(log_name) + "_log.pdf")
+    log.plot_classif(
+        x_score,
+        u_values,
+        z_values,
+        lidr,
+        str(log_name) + "_classif.pdf"
+    )
+    log.LOGGER.debug("%s", str(theta_t1))
     return (theta_t1, lidr)
 
 
