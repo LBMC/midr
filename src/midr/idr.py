@@ -23,7 +23,7 @@ from scipy.stats import bernoulli
 from scipy.optimize import brentq
 import numpy as np
 import pandas as pd
-import log
+import midr.log as log
 
 
 def cov_matrix(m_sample, theta):
@@ -130,10 +130,10 @@ def compute_empirical_marginal_cdf(rank):
     ...    [20.0,20.0],
     ...    [30.0,10.0]]))
     >>> compute_empirical_marginal_cdf(r)
-    array([[0.2475, 0.2475],
-           [0.495 , 0.99  ],
-           [0.7425, 0.7425],
-           [0.99  , 0.495 ]])
+    array([[0.99  , 0.99  ],
+           [0.7425, 0.2475],
+           [0.495 , 0.495 ],
+           [0.2475, 0.7425]])
     """
     x_score = np.empty_like(rank)
     n_value = float(rank.shape[0])
@@ -275,10 +275,10 @@ def compute_z_from_u(u_values, theta):
         [20.0,20.0],[30.0,10.0]]))
     >>> u = compute_empirical_marginal_cdf(r)
     >>> compute_z_from_u(u, {'mu': 1, 'rho': 0.5, 'sigma': 1, 'pi': 0.5})
-    array([[-0.2711064 , -0.2711064 ],
-           [ 0.48579773,  3.07591892],
-           [ 1.23590523,  1.23590523],
-           [ 3.07591892,  0.48579773]])
+    array([[ 3.07591891,  3.07591891],
+           [ 1.23590529, -0.27110639],
+           [ 0.48579773,  0.48579773],
+           [-0.27110639,  1.23590529]])
     """
     grid = compute_grid(
         theta=theta,
@@ -535,6 +535,101 @@ def em_pseudo_data(z_values,
             pseudo=False
         )
     return theta_t1, k_state, logger
+
+
+def copula_franck(z_values, theta):
+    """
+    compute franck copula
+    :param z_values:
+    :param theta:
+    :return:
+    >>> copula_franck(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]),
+    ...    0.1)
+    array([-0.02974577, -0.0049061 , -0.0172447 , -0.01165619, -0.00016851,
+           -0.03069314, -0.00659961, -0.00044277, -0.00958698, -0.00923634])
+    """
+    copula = np.empty_like(z_values[:, 0])
+    for i in range(z_values.shape[0]):
+        copula[i] = 1
+        for j in range(z_values.shape[1]):
+            copula[i] *= np.exp(-float(theta) * float(z_values[i, j])) - 1.0
+        copula[i] /= np.exp(-float(theta)) - 1.0
+        copula[i] = -1.0 / float(theta) * np.log(1.0 + copula[i])
+    return copula
+
+
+def copula_clayton(z_values, theta):
+    """
+    compute franck copula
+    :param z_values:
+    :param theta:
+    :return:
+    >>> copula_clayton(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]),
+    ...    0.1)
+    array([0.3271503 , 0.06358001, 0.19507278, 0.1269139 , 0.00426169,
+           0.33473455, 0.08108552, 0.00869809, 0.11257681, 0.10827238])
+    """
+    copula = np.empty_like(z_values[:, 0])
+    for i in range(z_values.shape[0]):
+        copula[i] = 0
+        for j in range(z_values.shape[1]):
+            copula[i] += float(z_values[i, j]) ** (-float(theta))
+        copula[i] += - float(z_values.shape[1]) + 1.0
+        copula[i] **= -1.0 / float(theta)
+    return copula
+
+
+def copula_gumbel(z_values, theta):
+    """
+    compute franck copula
+    :param z_values:
+    :param theta:
+    :return:
+    >>> copula_gumbel(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]),
+    ...    10)
+    array([0.63429604, 0.27406786, 0.45146423, 0.15136347, 0.05290861,
+           0.48956205, 0.22830395, 0.05501846, 0.25932584, 0.24581602])
+    """
+    copula = np.empty_like(z_values[:, 0])
+    for i in range(z_values.shape[0]):
+        copula[i] = 0
+        for j in range(z_values.shape[1]):
+            copula[i] += (-np.log(float(z_values[i, j]))) ** (float(theta))
+        copula[i] = np.exp(-((copula[i]) ** (1.0 / float(theta))))
+    return copula
 
 
 def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):

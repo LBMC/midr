@@ -8,14 +8,14 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="midr",
-    version="1.0.7",
+    version="1.0.8",
     packages=['midr'],
     install_requires=[
         'scipy>=1.3',
         'numpy>=1.16',
         'pynverse>=0.1',
         'pandas>=0.25.0',
-        'matplotlib>=3.1'
+        'matplotlib>=3.1.0'
     ],
     author="Laurent Modolo",
     author_email="laurent.modolo@ens-lyon.fr",
