@@ -672,9 +672,19 @@ def process_bed(file_names: list,
             score_cols=score_cols
         ),
         threshold=threshold,
-        log_name=outdir
+        log_name=PurePath(outdir).joinpath(
+            "idr_" + PurePath(str(file_names[0])).name
+        )
     )
-    print(theta)
+    pd.Series(theta).to_csv(
+        PurePath(outdir).joinpath(
+            "idr_" + PurePath(str(file_names[0])).name + "_theta.csv"
+        ),
+        sep='\t',
+        encoding='utf-8',
+        header=True,
+        index=False
+    )
     writefiles(
         bed_files=bed_files,
         file_names=file_names,
