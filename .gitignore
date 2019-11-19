@@ -3,3 +3,6 @@
 .RData
 .Ruserdata
 .idea
+*.Rproj
+*.prof
+*.pdf
