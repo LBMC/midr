@@ -163,7 +163,7 @@ def writefiles(bed_files: list,
     :param outdir: output directory
     :return: nothing
     """
-    for bed, file_name in zip(bed_files, file_names):
+    for bed, file_name in zip(bed_files, file_names[1:]):
         output_name = PurePath(outdir).joinpath(
             "idr_" + PurePath(str(file_name)).name
         )
@@ -513,7 +513,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     return merged_peaks
 
 
-def merge_beds(bed_files: list, ref_pos=0,
+def merge_beds(bed_files: list,
                merge_function=sum,
                size=100,
                file_cols: list = None,
@@ -579,26 +579,23 @@ strand    peak  signalValue
     """
     merged_files = []
     nan_pos = []
-    assert ref_pos < len(bed_files), \
-        "error: ref_pos must be in the list of bed"
-    for bed in bed_files:
-        if bed is not bed_files[ref_pos]:
-            merged_files.append(
-                merge_peaks(
-                    ref_peaks=bed_files[ref_pos],
-                    peaks=bed,
-                    merge_function=merge_function,
-                    size=size,
-                    file_cols=file_cols,
-                    score_col=score_col,
-                    pos_cols=pos_cols
-                )
+    for bed in bed_files[1:]:
+        merged_files.append(
+            merge_peaks(
+                ref_peaks=bed_files[0],
+                peaks=bed,
+                merge_function=merge_function,
+                size=size,
+                file_cols=file_cols,
+                score_col=score_col,
+                pos_cols=pos_cols
             )
-            nan_pos += list(
-                merged_files[-1].index[
-                    merged_files[-1][score_col].apply(np.isnan)
-                ].to_numpy()
-            )
+        )
+        nan_pos += list(
+            merged_files[-1].index[
+                merged_files[-1][score_col].apply(np.isnan)
+            ].to_numpy()
+        )
     nan_pos = set(nan_pos)
     for merged in range(len(merged_files)):
         merged_files[merged] = merged_files[merged].drop(nan_pos)
@@ -670,11 +667,12 @@ def process_bed(file_names: list,
         pos_cols=pos_cols,
     )
     theta, local_idr = idr_func(
-       narrowpeaks2array(
-           np_list=bed_files,
-           score_cols=score_cols
-       ),
-        threshold=threshold
+        narrowpeaks2array(
+            np_list=bed_files,
+            score_cols=score_cols
+        ),
+        threshold=threshold,
+        log_name=outdir
     )
     print(theta)
     writefiles(
@@ -686,27 +684,5 @@ def process_bed(file_names: list,
 
 
 if __name__ == "__main__":
-    merge_peaks(
-         ref_peaks=pd.DataFrame({
-         'chr': ['a', 'a', 'a', 'a', 'a', 'a'],
-     'start': [50, 100, 1000, 4000, 100000, 200000],
-     'stop': [60, 500, 3000, 10000, 110000, 230000],
-     'strand': [".", ".", ".", ".", ".", "."],
-     'peak': [55, 250, 2000, 7000, 100000, 215000],
-     'signalValue': [10, 20, 100, 15, 30, 200]}),
-     peaks=pd.DataFrame({
-         'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
-     'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
-                   200000],
-     'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
-                  230000],
-     'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
-     'peak': [250, 200, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
-                  220000],
-     'signalValue': [20, 15, 100, 15, 30, 14, 30, 200, 300, 400]}),
-     score_col=narrowpeaks_score(),
-                   file_cols=narrowpeaks_cols(),
-                                 pos_cols=narrowpeaks_sort_cols()
-         )
     import doctest
     doctest.testmod()
