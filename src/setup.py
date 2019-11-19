@@ -3,12 +3,12 @@
 
 import setuptools
 
-with open("../README.md", "r") as fh:
+with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
     name="midr",
-    version="1.0.5",
+    version="1.0.7",
     packages=['midr'],
     install_requires=[
         'scipy>=1.3',

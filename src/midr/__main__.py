@@ -15,9 +15,9 @@ import logging
 import sys
 import argparse
 
-import narrowpeak
-import log
-import idr
+import midr.narrowpeak as narrowpeak
+import midr.log as log
+import midr.idr as idr
 
 
 class CustomFormatter(argparse.RawDescriptionHelpFormatter,
