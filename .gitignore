@@ -6,3 +6,8 @@
 *.Rproj
 *.prof
 *.pdf
+data/
+results*
+src/build
+src/dist
+src/midr.egg-info
