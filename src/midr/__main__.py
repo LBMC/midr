@@ -72,13 +72,13 @@ def parse_args(args):
                      default='sum',
                      type=str,
                      help="function to determine the score to keep for \
-                     overlpping peak ('sum', 'max', 'mean', 'median', 'min')")
+                     overlapping peak ('sum', 'max', 'mean', 'median', 'min')")
     arg.add_argument("--size", "-ws", metavar="SIZE_MERGE",
                      dest='size_merge',
                      required=False,
                      default=100,
                      type=int,
-                     help="distante to add before and after each peak before "
+                     help="distance to add before and after each peak before "
                           "merging")
     arg.add_argument("--debug", "-d", action="store_true",
                      default=False,
