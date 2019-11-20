@@ -98,40 +98,41 @@ Displaying help:
 
 ```
 $ midr -h
-usage: midr [-h] --merged FILE --files FILES [FILES ...] [--output DIR]       
-           [--score SCORE_COLUMN] [--threshold THRESHOLD] [--debug]           
-           [--verbose]                                                        
-                                                                              
-Compute the Irreproducible Discovery Rate (IDR) from NarrowPeaks files        
-                                                                              
-Implementation of the IDR methods for two or more replicates.                 
-                                                                              
-LI, Qunhua, BROWN, James B., HUANG, Haiyan, et al. Measuring reproducibility  
-of high-throughput experiments. The annals of applied statistics, 2011,       
-vol. 5, no 3, p. 1752-1779.                                                   
-                                                                              
-Given a list of peak calls in NarrowPeaks format and the corresponding peak   
-call for the merged replicate. This tool computes and appends a IDR column to  
-NarrowPeaks files.                                                            
-                                                                              
-optional arguments:                                                           
-  -h, --help            show this help message and exit                       
-                                                                              
-IDR settings:                                                                 
-  --merged FILE, -m FILE                                                      
-                        file of the merged NarrowPeaks                        
-  --files FILES [FILES ...], -f FILES [FILES ...]                             
-                        list of NarrowPeaks files                             
-  --output DIR, -o DIR  output directory (default: results)                   
-  --score SCORE_COLUMN, -s SCORE_COLUMN                                       
-                        NarrowPeaks score column to compute the IDR on, one of
-                        'score', 'signalValue', 'pValue' or 'qValue' (default:
-                        signalValue)                                          
-  --threshold THRESHOLD, -t THRESHOLD                                         
-                        Threshold value for the precision of the estimator    
-                        (default: 0.01)                                       
-  --debug, -d           enable debugging (default: False)                     
-  --verbose             log to console (default: False)                       
+usage: midr [-h] --merged FILE --files FILES [FILES ...] [--output DIR] [--score SCORE_COLUMN] [--threshold THRESHOLD] [--merge_function MERGE_FUNCTION] [--size SIZE_MERGE] [--debug] [--verbose]
+
+Compute the Irreproducible Discovery Rate (IDR) from NarrowPeaks files
+
+Implementation of the IDR methods for two or more replicates.
+
+LI, Qunhua, BROWN, James B., HUANG, Haiyan, et al. Measuring reproducibility
+of high-throughput experiments. The annals of applied statistics, 2011,
+vol. 5, no 3, p. 1752-1779.
+
+Given a list of peak calls in NarrowPeaks format and the corresponding peak
+call for the merged replicate. This tool computes and appends a IDR column to
+NarrowPeaks files.
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+IDR settings:
+  --merged FILE, -m FILE
+                        file of the merged NarrowPeaks
+  --files FILES [FILES ...], -f FILES [FILES ...]
+                        list of NarrowPeaks files
+  --output DIR, -o DIR  output directory (default: results)
+  --score SCORE_COLUMN, -s SCORE_COLUMN
+                        NarrowPeaks score column to compute the IDR on, one of 'score', 'signalValue', 'pValue' or 'qValue' (default: signalValue)
+  --threshold THRESHOLD, -t THRESHOLD
+                        Threshold value for the precision of the estimator (default: 0.0001)
+  --merge_function MERGE_FUNCTION, -mf MERGE_FUNCTION
+                        function to determine the score to keep for
+                        overlapping peak ('sum', 'max', 'mean', 'median',
+                        'min') (default: sum)
+  --size SIZE_MERGE, -ws SIZE_MERGE
+                        distance to add before and after each peak before merging (default: 100)
+  --debug, -d           enable debugging (default: False)
+  --verbose, -v         log to console (default: False)
 ```
 
 
