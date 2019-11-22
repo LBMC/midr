@@ -537,10 +537,10 @@ def em_pseudo_data(z_values,
     return theta_t1, k_state, logger
 
 
-def copula_franck(z_values, theta):
+def copula_franck_cdf(u_values, theta):
     """
-    compute franck copula
-    :param z_values:
+    compute franck copula cdf
+    :param u_values:
     :param theta:
     :return:
     >>> copula_franck(np.array([
@@ -559,20 +559,20 @@ def copula_franck(z_values, theta):
     array([-0.02974577, -0.0049061 , -0.0172447 , -0.01165619, -0.00016851,
            -0.03069314, -0.00659961, -0.00044277, -0.00958698, -0.00923634])
     """
-    copula = np.empty_like(z_values[:, 0])
-    for i in range(z_values.shape[0]):
+    copula = np.empty_like(u_values[:, 0])
+    for i in range(u_values.shape[0]):
         copula[i] = 1
-        for j in range(z_values.shape[1]):
-            copula[i] *= np.exp(-float(theta) * float(z_values[i, j])) - 1.0
+        for j in range(u_values.shape[1]):
+            copula[i] *= np.exp(-float(theta) * float(u_values[i, j])) - 1.0
         copula[i] /= np.exp(-float(theta)) - 1.0
         copula[i] = -1.0 / float(theta) * np.log(1.0 + copula[i])
     return copula
 
 
-def copula_clayton(z_values, theta):
+def copula_clayton_cdf(u_values, theta):
     """
-    compute franck copula
-    :param z_values:
+    compute franck copula cdf
+    :param u_values:
     :param theta:
     :return:
     >>> copula_clayton(np.array([
@@ -591,20 +591,20 @@ def copula_clayton(z_values, theta):
     array([0.3271503 , 0.06358001, 0.19507278, 0.1269139 , 0.00426169,
            0.33473455, 0.08108552, 0.00869809, 0.11257681, 0.10827238])
     """
-    copula = np.empty_like(z_values[:, 0])
-    for i in range(z_values.shape[0]):
+    copula = np.empty_like(u_values[:, 0])
+    for i in range(u_values.shape[0]):
         copula[i] = 0
-        for j in range(z_values.shape[1]):
-            copula[i] += float(z_values[i, j]) ** (-float(theta))
-        copula[i] += - float(z_values.shape[1]) + 1.0
+        for j in range(u_values.shape[1]):
+            copula[i] += float(u_values[i, j]) ** (-float(theta))
+        copula[i] += - float(u_values.shape[1]) + 1.0
         copula[i] **= -1.0 / float(theta)
     return copula
 
 
-def copula_gumbel(z_values, theta):
+def copula_gumbel_cdf(u_values, theta):
     """
-    compute franck copula
-    :param z_values:
+    compute franck copula cdf
+    :param u_values:
     :param theta:
     :return:
     >>> copula_gumbel(np.array([
@@ -623,11 +623,11 @@ def copula_gumbel(z_values, theta):
     array([0.63429604, 0.27406786, 0.45146423, 0.15136347, 0.05290861,
            0.48956205, 0.22830395, 0.05501846, 0.25932584, 0.24581602])
     """
-    copula = np.empty_like(z_values[:, 0])
-    for i in range(z_values.shape[0]):
+    copula = np.empty_like(u_values[:, 0])
+    for i in range(u_values.shape[0]):
         copula[i] = 0
-        for j in range(z_values.shape[1]):
-            copula[i] += (-np.log(float(z_values[i, j]))) ** (float(theta))
+        for j in range(u_values.shape[1]):
+            copula[i] += (-np.log(float(u_values[i, j]))) ** (float(theta))
         copula[i] = np.exp(-((copula[i]) ** (1.0 / float(theta))))
     return copula
 
