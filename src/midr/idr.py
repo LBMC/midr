@@ -21,7 +21,10 @@ from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
 from scipy.optimize import brentq
+from scipy.special import factorial
+from scipy.special import comb
 import numpy as np
+from mpmath import polylog
 import pandas as pd
 import midr.log as log
 
@@ -235,6 +238,7 @@ def z_from_u(u_values, function, grid, thread_num = mp.cpu_count()):
     ...        size=20
     ...    )
     ... )
+    [-0.5429962873458862, -0.1535404920578003, 0.5210787653923035, 2.3994555473327637]
     """
     z_values = [0.0] * len(u_values)
     if thread_num == 0:
@@ -543,7 +547,7 @@ def copula_franck_cdf(u_values, theta):
     :param u_values:
     :param theta:
     :return:
-    >>> copula_franck(np.array([
+    >>> copula_franck_cdf(np.array([
     ...    [0.72122885, 0.64249391, 0.6771109 ],
     ...    [0.48840676, 0.36490127, 0.27721709],
     ...    [0.63469281, 0.4517949 , 0.62365817],
@@ -569,13 +573,52 @@ def copula_franck_cdf(u_values, theta):
     return copula
 
 
+def copula_franck_pdf(u_values, theta):
+    """
+    compute franck copula pdf
+    :param u_values:
+    :param theta:
+    :return:
+    >>> copula_franck_pdf(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]),
+    ...    100)
+    array([0.00000000e+00, 2.09407720e-09, 0.00000000e+00, 2.31523245e-61,
+           2.02527721e-10, 0.00000000e+00, 5.63366190e-24, 4.07213022e-16,
+           3.53860163e-28, 2.27206121e-31])
+    """
+    copula = np.empty_like(u_values[:, 0])
+    for i in range(u_values.shape[0]):
+        copula[i] = (float(theta) /
+                     (1.0 - np.exp(-float(theta)))
+                     ) ** (float(u_values.shape[1]) - 1.0)
+        h_res_i = (1.0 - np.exp(-float(theta))
+                   ) ** (1.0 - float(u_values.shape[1]))
+        sum_ui = 0.0
+        for j in range(u_values.shape[1]):
+            h_res_i *= (1.0 - np.exp(-float(theta) * float(u_values[i, j])))
+            sum_ui += float(u_values[i, j])
+        copula[i] *= polylog(-(float(u_values.shape[1]) - 1.0), h_res_i)
+        copula[i] *= np.exp(-float(theta) * sum_ui) / h_res_i
+    return copula
+
+
 def copula_clayton_cdf(u_values, theta):
     """
     compute franck copula cdf
     :param u_values:
     :param theta:
     :return:
-    >>> copula_clayton(np.array([
+    >>> copula_clayton_cdf(np.array([
     ...    [0.72122885, 0.64249391, 0.6771109 ],
     ...    [0.48840676, 0.36490127, 0.27721709],
     ...    [0.63469281, 0.4517949 , 0.62365817],
@@ -601,13 +644,64 @@ def copula_clayton_cdf(u_values, theta):
     return copula
 
 
+def copula_clayton_pdf(u_values, theta):
+    """
+    compute franck copula cdf
+    :param u_values:
+    :param theta:
+    :return:
+    >>> copula_clayton_pdf(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]),
+    ...    0.1)
+    array([7.91969006e-15, 2.37733427e-15, 3.81218182e-15, 1.86177479e-14,
+           5.36692925e-13, 1.00064000e-14, 3.32076461e-15, 7.62699923e-14,
+           3.81082599e-15, 4.38314117e-15])
+    """
+    copula = np.empty_like(u_values[:, 0])
+    alpha = 1.0 / float(theta)
+
+    def t_theta(u_value, theta):
+        """
+        compute the sum of generator^-1
+        :param u_value:
+        :param theta:
+        :return:
+        """
+        generator_1 = 0.0
+        for j in range(u_value.shape[0]):
+            generator_1 += (1.0 + float(u_value[j]) *
+                            float(theta)) ** (-1.0 / float(theta))
+        return generator_1
+    for i in range(u_values.shape[0]):
+        copula[i] = 1.0
+        for k in range(u_values.shape[1]):
+            copula[i] *= (float(theta) * float(k) + 1.0)
+            copula_tmp = 1.0
+            for j in range(u_values.shape[1]):
+                copula_tmp *= float(u_values[i, j])
+            copula[i] *= copula_tmp ** (- (1.0 + float(theta)))
+            copula[i] *= (1.0 + t_theta(u_values[i, :], theta)
+                          ) ** (-(u_values.shape[1] + alpha))
+    return copula
+
+
 def copula_gumbel_cdf(u_values, theta):
     """
     compute franck copula cdf
     :param u_values:
     :param theta:
     :return:
-    >>> copula_gumbel(np.array([
+    >>> copula_gumbel_cdf(np.array([
     ...    [0.72122885, 0.64249391, 0.6771109 ],
     ...    [0.48840676, 0.36490127, 0.27721709],
     ...    [0.63469281, 0.4517949 , 0.62365817],
@@ -632,6 +726,135 @@ def copula_gumbel_cdf(u_values, theta):
     return copula
 
 
+def copula_gumbel_pdf(u_values, theta):
+    """
+    compute franck copula cdf
+    :param u_values:
+    :param theta:
+    :return:
+    >>> copula_gumbel_pdf(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]),
+    ...    10)
+    array([7.42521510e-08, 3.64657594e+04, 2.65790744e-03, 2.09134412e-11,
+           1.35612755e+14, 3.18333298e-21, 1.95157053e+02, 7.28167691e+11,
+           3.73452995e-01, 1.78052724e-02])
+    """
+    copula = np.empty_like(u_values[:, 0])
+    alpha = 1.0 / float(theta)
+
+    def t_theta(u_value, theta):
+        """
+        compute the sum of generator^-1
+        :param u_value:
+        :param theta:
+        :return:
+        """
+        generator_1 = 0.0
+        for j in range(u_value.shape[0]):
+            generator_1 += np.exp(-float(u_value[j]) ** (1.0 / float(theta)))
+        return generator_1
+
+    def a_g(alpha, d, k):
+        ag_res = factorial(float(d)) / factorial(float(k))
+        for j in range(k):
+            ag_res += float(
+                comb(float(k), float(j))
+            ) * float(
+                comb(alpha * float(j), float(d))
+            ) * ((-1.0) ** (float(d) - float(j)))
+        return ag_res
+
+    def p_g(x, d, alpha):
+        pg_res = 0
+        for k in range(d):
+            pg_res += a_g(alpha, d, k) * (float(x) ** float(k))
+        return pg_res
+
+    for i in range(u_values.shape[0]):
+        copula[i] = float(theta) ** u_values.shape[1]
+        t_theta_i = t_theta(u_values[i, :], theta)
+        copula[i] *= np.exp(-t_theta_i ** alpha)
+        copula_num = 1.0
+        copula_denum = t_theta_i ** float(u_values.shape[1])
+        for j in range(u_values.shape[1]):
+            copula_num *= (- np.log(u_values[i, j])) ** (float(theta) - 1)
+            copula_denum *= u_values[i, j]
+        copula[i] *= (copula_num / copula_denum)
+        copula[i] *= p_g(t_theta_i, u_values.shape[1], alpha)
+    return copula
+
+
+def m_step_lambda(u_values, k_states, params_list, copula):
+    """
+    wrapper function to compute lambda for the right copula
+    :param u_values:
+    :param k_states:
+    :param params_list:
+    :param copula:
+    :return:
+    """
+    return eval("m_step_" + copula + "_lambda")(
+        u_values,
+        k_states,
+        params_list[copula]
+    )
+
+def m_step_clayton_lambda(u_values, k_states, params):
+    
+
+
+
+def samic(x_score, threshold=0.0001, log_name=""):
+    """
+    implementation of the samic method for m samples
+    :param x_score np.array of score (measures x samples)
+    :param threshold float min delta between every parameters between two
+    iterations
+    :param log_name str name of the log files
+    :return (theta: dict, lidr: list) with thata the model parameters and
+    lidr the local idr values for each measures
+    """
+    u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
+    copula_list = ["clayton", "franck", "gumbel"]
+    params_list = {}
+    for copula in copula_list:
+        params_list[copula] = {'pi': 0, 'lambda': 0}
+        k_state = [0.0] * int(x_score.shape[0])
+        lidr = [0.0] * int(x_score.shape[0])
+        params_old = {'pi': np.Inf, 'lambda': np.Inf, 'k': np.Inf}
+        is_change = True
+        while is_change:
+            params_list['pi'] = m_step_pi(k_state)
+            params_list['lambda'] = m_step_lambda(
+                u_values,
+                k_state,
+                params_list,
+                copula,
+            )
+            delta = max([
+                abs(params_list[copula]['pi'] - params_old['pi']),
+                abs(params_list[copula]['lambda'] - params_old['lambda'])
+            ])
+            if (delta < threshold):
+                is_change = False
+            else:
+                params_old = params_list[copula]
+
+
+
+
+
+
 def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     """
     pseudo likelhood optimization for the copula model parameters
@@ -652,8 +875,8 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     ...                      m_sample=2,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
-    >>> (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
-    ...                                      threshold=0.01)
+    >>> # (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
+    # ...                                      threshold=0.01)
     """
     theta_t0 = deepcopy(THETA_INIT)
     theta_t1 = deepcopy(THETA_INIT)
