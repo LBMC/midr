@@ -238,6 +238,8 @@ def z_from_u(u_values, function, grid, thread_num=mp.cpu_count()):
     ...        size=20
     ...    )
     ... )
+    [-0.5429962873458862, -0.1535404920578003, 0.5210787653923035, \
+2.3994555473327637]
     """
     z_values = [0.0] * len(u_values)
     if thread_num == 0:
