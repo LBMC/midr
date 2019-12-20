@@ -436,9 +436,9 @@ def loglikelihood(z_values, k_state, theta):
         logl = 0.0
         for i in range(z_values.shape[0]):
             logl += (1.0 - float(k_state[i])) * (
-                        math.log(1.0 - float(theta['pi'])) + math.log(h0_x[i]))
+                    math.log(1.0 - float(theta['pi'])) + math.log(h0_x[i]))
             logl += float(k_state[i]) * (
-                        math.log(float(theta['pi'])) + math.log(h1_x[i]))
+                    math.log(float(theta['pi'])) + math.log(h1_x[i]))
         return logl
     except ValueError as err:
         log.LOGGER.exception("%s", "error: logLikelihood: " + str(err))
@@ -557,6 +557,7 @@ def lsum(x_values):
         results += np.exp(np.log(float(x_values[i])) - b_max)
     return b_max + np.log(results)
 
+
 def lssum(x_values):
     """
     compute log sum_i x_i with sign
@@ -571,6 +572,54 @@ def lssum(x_values):
         else:
             results -= np.exp(np.log(float(abs(x_values[i]))) - b_max)
     return b_max + np.log(results)
+
+
+def log_copula_franck_cdf(u_values, theta):
+    """
+    compute log franck copula cdf
+    :param u_values:
+    :param theta:
+    :return:
+    >>> log_copula_franck_cdf(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]),
+    ...    0.1)
+    array([0.246109  , 0.33384317, 0.27751253, 0.252856  , 0.39741306,
+           0.23508275, 0.3151825 , 0.38446148, 0.29659567, 0.29323393])
+    """
+    def h_f(ui_values, theta):
+        result = (1.0 - np.exp(-theta)) ** (1.0 - ui_values.shape[0])
+        for j in range(ui_values.shape[0]):
+            result *= 1.0 - np.exp(-theta * ui_values[j])
+        return result
+
+    def lh_f(ui_values, theta):
+        result = (1.0 - ui_values.shape[0]) * np.log(1.0 - np.exp(-theta))
+        for j in range(ui_values.shape[0]):
+            result += np.log(1.0 - np.exp(-theta * ui_values[j]))
+        return result
+
+    def lpolylog(ui_values, theta):
+        return np.log(float(polylog(ui_values.shape[0], h_f(ui_values, theta))))
+
+    lc_theta = np.empty_like(u_values[:, 0])
+    for i in range(u_values.shape[0]):
+        lc_theta[i] = (u_values.shape[0] - 1)
+        lc_theta[i] *= np.log(theta) - np.log(1 - np.exp(-theta))
+        lc_theta[i] += lpolylog(u_values[i, :], theta)
+        lc_theta[i] -= theta * sum(u_values[i, :])
+        lc_theta[i] -= lh_f(u_values[i, :], theta)
+    return lc_theta
+
 
 def copula_franck_cdf(u_values, theta):
     """
@@ -713,6 +762,7 @@ def copula_clayton_pdf(u_values, theta):
             generator_1 += (1.0 + float(u_value[j]) *
                             float(theta)) ** (-1.0 / float(theta))
         return generator_1
+
     for i in range(u_values.shape[0]):
         copula[i] = 1.0
         for k in range(u_values.shape[1]):
@@ -848,18 +898,15 @@ def compute_diagonal(u_values):
     return y_values
 
 
-def m_step_clayton_theta(u_values, k_states, params):
-
-
 def m_step_grumbel_theta(u_values, k_states, params):
     y_values = compute_diagonal(u_values)
     sum_y_values = 0.0
     for i in range(y_values.shape[0]):
         sum_y_values += np.log(y_values[i])
     theta = float(np.log(u_values.shape[1])) / (
-        np.log(u_values.shape[0]) - np.log(
-            sum_y_values
-        )
+            np.log(u_values.shape[0]) - np.log(
+        sum_y_values
+    )
     )
     return max(theta, 1.0)
 
