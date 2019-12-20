@@ -794,7 +794,7 @@ def copula_gumbel_pdf(u_values, theta):
     return copula
 
 
-def m_step_lambda(u_values, k_states, params_list, copula):
+def m_step_theta(u_values, k_states, params_list, copula):
     """
     wrapper function to compute lambda for the right copula
     :param u_values:
@@ -809,9 +809,28 @@ def m_step_lambda(u_values, k_states, params_list, copula):
         params_list[copula]
     )
 
-def m_step_clayton_lambda(u_values, k_states, params):
-    
 
+def compute_diagonal(u_values):
+    y_values = np.empty_like(u_values[:, 0])
+    for i in range(u_values.shape[0]):
+        y_values[i] = max(u_values[i, :])
+    return y_values
+
+
+def m_step_clayton_theta(u_values, k_states, params):
+
+
+def m_step_grumbel_theta(u_values, k_states, params):
+    y_values = compute_diagonal(u_values)
+    sum_y_values = 0.0
+    for i in range(y_values.shape[0]):
+        sum_y_values += np.log(y_values[i])
+    theta = float(np.log(u_values.shape[1])) / (
+        np.log(u_values.shape[0]) - np.log(
+            sum_y_values
+        )
+    )
+    return max(theta, 1.0)
 
 
 def samic(x_score, threshold=0.0001, log_name=""):
