@@ -148,7 +148,7 @@ def compute_empirical_marginal_cdf(rank):
     for i in range(int(n_value)):
         for j in range(int(m_sample)):
             x_score[i][j] = (1.0 - (float(rank[i][j] - 1) / n_value)) * \
-                scaling_factor
+                            scaling_factor
     return x_score
 
 
@@ -158,15 +158,17 @@ def g_function(z_values, theta):
     """
     sigma = np.sqrt(float(theta['sigma']))
     f_pi = float(theta['pi'])  # / sigma
-    return f_pi * norm.cdf(float(z_values), loc=theta['mu'], scale=sigma) + \
-           (1.0 - f_pi) * norm.cdf(float(z_values), loc=0, scale=1)
+    return f_pi * norm.cdf(float(z_values),
+                           loc=float(theta['mu']),
+                           scale=np.sqrt(float(theta['sigma']))) + \
+           (1.0 - f_pi) * norm.cdf(float(z_values), loc=0.0, scale=1.0)
 
 
 def compute_grid(theta,
                  function=g_function,
                  size=1000,
-                 z_start=-4,
-                 z_stop=4):
+                 z_start=-4.0,
+                 z_stop=4.0):
     """
     compute a grid of function(z_values) from z_start to z_stop
     :param function: function
@@ -210,7 +212,7 @@ def z_from_u_worker(q: mp.JoinableQueue, function, grid, u_values, z_values):
     while not q.empty():
         i = q.get()
         a_loc = grid.loc[grid['u_values'] <= u_values[i]]
-        a_loc = a_loc.iloc[len(a_loc)-1:len(a_loc)].index[0]
+        a_loc = a_loc.iloc[len(a_loc) - 1:len(a_loc)].index[0]
         b_loc = grid.loc[grid['u_values'] >= u_values[i]].index[0]
         z_values[i] = brentq(
             f=lambda x: function(x, u_values[i]),
@@ -219,7 +221,8 @@ def z_from_u_worker(q: mp.JoinableQueue, function, grid, u_values, z_values):
         )
         q.task_done()
 
-def z_from_u(u_values, function, grid, thread_num = mp.cpu_count()):
+
+def z_from_u(u_values, function, grid, thread_num=mp.cpu_count()):
     """
     Compute z_values from u_values
     :param u_values: list of u_values
@@ -238,13 +241,14 @@ def z_from_u(u_values, function, grid, thread_num = mp.cpu_count()):
     ...        size=20
     ...    )
     ... )
-    [-0.5429962873458862, -0.1535404920578003, 0.5210787653923035, 2.3994555473327637]
+    [-0.5429962873458862, -0.1535404920578003, 0.5210787653923035, \
+2.3994555473327637]
     """
     z_values = [0.0] * len(u_values)
     if thread_num == 0:
         for i in range(len(u_values)):
             a_loc = grid.loc[grid['u_values'] <= u_values[i]]
-            a_loc = a_loc.iloc[len(a_loc)-1:len(a_loc)].index[0]
+            a_loc = a_loc.iloc[len(a_loc) - 1:len(a_loc)].index[0]
             b_loc = grid.loc[grid['u_values'] >= u_values[i]].index[0]
             z_values[i] = brentq(
                 f=lambda x: function(x, u_values[i]),
@@ -253,7 +257,7 @@ def z_from_u(u_values, function, grid, thread_num = mp.cpu_count()):
             )
     else:
         q = mp.JoinableQueue()
-        shared_z_values = mp.Array('f', [0] * len(u_values), lock=False)
+        shared_z_values = mp.Array('f', [0.0] * len(u_values), lock=False)
         list(map(lambda x: q.put(x), range(len(u_values))))
         worker = map(
             lambda x: mp.Process(
@@ -288,8 +292,8 @@ def compute_z_from_u(u_values, theta):
         theta=theta,
         function=g_function,
         size=1000,
-        z_start=norm.ppf(np.amin(u_values), loc=-abs(theta['mu'])) - 1,
-        z_stop=norm.ppf(np.amax(u_values), loc=abs(theta['mu'])) + 1
+        z_start=norm.ppf(np.amin(u_values), loc=-abs(theta['mu'])) - 1.0,
+        z_stop=norm.ppf(np.amax(u_values), loc=abs(theta['mu'])) + 1.0
     )
     z_values = np.empty_like(u_values)
     for j in range(u_values.shape[1]):
@@ -326,9 +330,9 @@ def e_step_k(z_values, theta):
     """
     h0_x = h_function(z_values=z_values,
                       m_sample=z_values.shape[1],
-                      theta={'mu': 0,
-                             'sigma': 1,
-                             'rho': 0}
+                      theta={'mu': 0.0,
+                             'sigma': 1.0,
+                             'rho': 0.0}
                       )
     h0_x *= 1.0 - float(theta['pi'])
     h1_x = h_function(z_values=z_values,
@@ -346,9 +350,9 @@ def local_idr(z_values, theta):
     """
     h0_x = h_function(z_values=z_values,
                       m_sample=z_values.shape[1],
-                      theta={'mu': 0,
-                             'sigma': 1,
-                             'rho': 0}
+                      theta={'mu': 0.0,
+                             'sigma': 1.0,
+                             'rho': 0.0}
                       )
     h0_x *= (1.0 - float(theta['pi']))
     h1_x = h_function(z_values=z_values,
@@ -388,7 +392,7 @@ def m_step_sigma(z_values, k_state, theta):
     for i in range(z_values.shape[0]):
         for j in range(z_values.shape[1]):
             z_norm_sq += float(k_state[i]) * (float(z_values[i][j]) -
-                                              float(theta['mu'])) ** 2
+                                              float(theta['mu'])) ** 2.0
     return (1.0 / (float(z_values.shape[1]) * float(sum(k_state)))) * z_norm_sq
 
 
@@ -397,7 +401,7 @@ def m_step_rho(z_values, k_state, theta):
     compute maximization of rho
     0 < rho <= 1
     """
-    nb_non_diag = float(z_values.shape[1]) ** 2 - float(z_values.shape[1])
+    nb_non_diag = float(z_values.shape[1]) ** 2.0 - float(z_values.shape[1])
     z_norm_time = 0.0
     for i in range(z_values.shape[0]):
         z_norm_time_i = 0.0
@@ -421,9 +425,9 @@ def loglikelihood(z_values, k_state, theta):
     try:
         h0_x = h_function(z_values=z_values,
                           m_sample=z_values.shape[1],
-                          theta={'mu': 0,
-                                 'sigma': 1,
-                                 'rho': 0}
+                          theta={'mu': 0.0,
+                                 'sigma': 1.0,
+                                 'rho': 0.0}
                           )
         h1_x = h_function(z_values=z_values,
                           m_sample=z_values.shape[1],
@@ -431,10 +435,10 @@ def loglikelihood(z_values, k_state, theta):
                           )
         logl = 0.0
         for i in range(z_values.shape[0]):
-            logl += (1.0 - float(k_state[i])) * (math.log(1 - theta['pi']) +
-                                                 math.log(h0_x[i]))
-            logl += float(k_state[i]) * (math.log(theta['pi']) +
-                                         math.log(h1_x[i]))
+            logl += (1.0 - float(k_state[i])) * (
+                        math.log(1.0 - float(theta['pi'])) + math.log(h0_x[i]))
+            logl += float(k_state[i]) * (
+                        math.log(float(theta['pi'])) + math.log(h1_x[i]))
         return logl
     except ValueError as err:
         log.LOGGER.exception("%s", "error: logLikelihood: " + str(err))
@@ -464,8 +468,8 @@ def em_pseudo_data(z_values,
     """
     EM optimization of theta for pseudo-data
     >>> THETA_TEST = {'pi': 0.2,
-    ...               'mu': 2,
-    ...               'sigma': 3,
+    ...               'mu': 2.0,
+    ...               'sigma': 3.0,
     ...               'rho': 0.65}
     >>> DATA = sim_m_samples(n_value=1000,
     ...                      m_sample=2,
@@ -487,7 +491,7 @@ def em_pseudo_data(z_values,
     True
     >>> abs(THETA_RES['mu'] - THETA_TEST['mu']) < 0.2
     True
-    >>> abs(THETA_RES['sigma'] - THETA_TEST['sigma']) < 1
+    >>> abs(THETA_RES['sigma'] - THETA_TEST['sigma']) < 1.0
     True
     >>> abs(THETA_RES['rho'] - THETA_TEST['rho']) < 0.2
     True
@@ -870,10 +874,6 @@ def samic(x_score, threshold=0.0001, log_name=""):
                 params_old = params_list[copula]
 
 
-
-
-
-
 def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     """
     pseudo likelhood optimization for the copula model parameters
@@ -959,4 +959,5 @@ THETA_INIT = {
 
 if __name__ == "__main__":
     import doctest
+
     doctest.testmod()
