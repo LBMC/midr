@@ -545,6 +545,33 @@ def em_pseudo_data(z_values,
     return theta_t1, k_state, logger
 
 
+def lsum(x_values):
+    """
+    compute log sum_i x_i
+    :param x_values:
+    :return:
+    """
+    b_max = np.log(float(max(x_values)))
+    results = 0.0
+    for i in range(x_values.shape[0]):
+        results += np.exp(np.log(float(x_values[i])) - b_max)
+    return b_max + np.log(results)
+
+def lssum(x_values):
+    """
+    compute log sum_i x_i with sign
+    :param x_values:
+    :return:
+    """
+    b_max = np.log(float(max(abs(x_values))))
+    results = 0.0
+    for i in range(x_values.shape[0]):
+        if x_values[i] >= 0:
+            results += np.exp(np.log(float(abs(x_values[i]))) - b_max)
+        else:
+            results -= np.exp(np.log(float(abs(x_values[i]))) - b_max)
+    return b_max + np.log(results)
+
 def copula_franck_cdf(u_values, theta):
     """
     compute franck copula cdf
