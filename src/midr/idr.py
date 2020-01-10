@@ -20,13 +20,18 @@ from scipy.stats import rankdata
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
+from scipy.stats import poisson
 from scipy.optimize import brentq
+from scipy.optimize import minimize
+from scipy.special import gammaln
 from scipy.special import factorial
 from scipy.special import comb
 import numpy as np
 from mpmath import polylog
 import pandas as pd
 import midr.log as log
+
+import matplotlib.pyplot as plt
 
 
 def cov_matrix(m_sample, theta):
@@ -564,15 +569,27 @@ def lssum(x_values):
     :param x_values:
     :return:
     """
-    b_max = np.log(float(max(abs(x_values))))
+    b_i = np.sort(np.log(abs(x_values)))
+    b_max = max(b_i)
     results = 0.0
     for i in range(x_values.shape[0]):
-        if x_values[i] >= 0:
-            results += np.exp(np.log(float(abs(x_values[i]))) - b_max)
+        if b_i[i] >= 0.0:
+            results += np.exp(b_i[i] - b_max)
         else:
-            results -= np.exp(np.log(float(abs(x_values[i]))) - b_max)
+            results -= np.exp(b_i[i] - b_max)
     return b_max + np.log(results)
 
+def log1mexp(x):
+    """
+    compute log(1-exp(-a)
+    :param x:
+    :return:
+    """
+    assert x >= 0.0
+    if x <= np.log(2.0):
+        return np.log(-np.expm1(-x))
+    else:
+        return np.log1p(-np.exp(-x))
 
 def log_copula_franck_cdf(u_values, theta):
     """
@@ -596,6 +613,7 @@ def log_copula_franck_cdf(u_values, theta):
     array([0.246109  , 0.33384317, 0.27751253, 0.252856  , 0.39741306,
            0.23508275, 0.3151825 , 0.38446148, 0.29659567, 0.29323393])
     """
+
     def h_f(ui_values, theta):
         result = (1.0 - np.exp(-theta)) ** (1.0 - ui_values.shape[0])
         for j in range(ui_values.shape[0]):
@@ -690,6 +708,187 @@ def copula_franck_pdf(u_values, theta):
         copula[i] *= polylog(-(float(u_values.shape[1]) - 1.0), h_res_i)
         copula[i] *= np.exp(-float(theta) * sum_ui) / h_res_i
     return copula
+
+
+def log_copula_clayton_cdf(u_values, theta):
+    """
+    compute franck copula cdf
+    :param u_values:
+    :param theta:
+    :return:
+    >>> log_copula_clayton_cdf(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]),
+    ...    0.1)
+    array([-18.38984653, -23.19518979, -20.04813123, -19.32992577,
+           -25.88637098, -18.12908708, -22.17537644, -25.48058402,
+           -21.23116191, -21.17066147])
+    """
+
+    def sum_k(ui_values, theta):
+        result = 0.0
+        for j in range(ui_values.shape[0]):
+            result += np.log(theta * float(j + 1) + 1.0)
+        return result
+
+    def t_theta(ui_values, theta):
+        results = 0.0
+        for j in range(ui_values.shape[0]):
+            results += (1.0 + theta * ui_values[j]) ** -(1.0 / theta)
+        return results * (float(u_values.shape[1]) + 1.0 / theta)
+
+    lc_theta = np.empty_like(u_values[:, 0])
+    for i in range(u_values.shape[0]):
+        lc_theta[i] = sum_k(u_values[i, :], theta)
+        lc_theta[i] -= (1 + theta) * sum(np.log(u_values[i, :]))
+        lc_theta[i] -= t_theta(u_values[i, :], theta)
+    return lc_theta
+
+
+def log_pdf_diag_copula(u_values, theta, iPsi, absdPsi, absdiPsi):
+    """
+    compute pdf of the diagonal copula
+    :param u_values:
+    :param theta:
+    :param iPsi:
+    :param absdPsi:
+    :param absdiPsi:
+    :param is_log:
+    :return:
+    """
+    y = diag_copula(u_values)
+    for i in range(y.shape[0]):
+        y[i] = np.log(u_values.shape[1]) + absdPsi(
+        u_values.shape[1] * iPsi(y[i], theta), theta
+        ) + absdiPsi(y[i], theta)
+    return y
+
+def max_ddelta(u_values, iPsi, absdPsi, absdiPsi, constraint, plot=False):
+    """
+    find theta using DMLE from diagonal pdf
+    :param u_values:
+    :param iPsi:
+    :param absdPsi:
+    :param absdiPsi:
+    :param plot:
+    :return:
+    """
+    def log_ddelta(theta, u_values):
+        return -np.sum(log_pdf_diag_copula(
+            u_values=u_values,
+            theta=theta,
+            absdPsi=absdPsi,
+            iPsi=iPsi,
+            absdiPsi=absdiPsi
+        ))
+    res = minimize(
+        fun=lambda x: log_ddelta(x, u_values),
+        x0=0.5,
+        constraints=constraint
+    )
+    if res.success:
+        return res.x[0]
+    else:
+        return np.NaN
+
+
+def DMLE_copula_clayton(u_values):
+    """
+    compute clayton theta with DMLE
+    :param u_values:
+    :param theta:
+    :return:
+    >>> DMLE_copula_clayton( np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ])
+    ... )
+    0.2740632857071272
+    """
+    def absdPsi(x, theta):
+        alpha = 1.0 / theta
+        if theta > 0.0:
+            return gammaln(alpha + 1.0) - gammaln(alpha) - (1.0 + alpha) * \
+            np.log1p(x)
+        return -(gammaln(1.0+alpha) - gammaln(alpha)) - (1.0 + alpha) * \
+        np.log1p(-x)
+
+    def iPsi(x, theta):
+        return np.sign(theta) * (x ** (-theta) - 1.0)
+
+    def absdiPsi(x, theta):
+        return np.log(theta)-(1.0+theta)*np.log(x)
+
+    return max_ddelta(
+        u_values=u_values,
+        absdPsi=absdPsi,
+        iPsi=iPsi,
+        absdiPsi=absdiPsi,
+        constraint=[{'type': 'ineq', 'fun': lambda x: 1e-14},
+                    {'type': 'ineq', 'fun': lambda x: 1000 - x}],
+        plot=True
+    )
+
+def DMLE_copula_franck(u_values):
+    """
+    compute franck theta with DMLE
+    :param u_values:
+    :param theta:
+    :return:
+    >>> DMLE_copula_franck(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ])
+    ... )
+    3.0737030577878235
+    """
+    def absdPsi(x, theta):
+        w = log1mexp(theta) - x
+        li = w - log1mexp(-w)
+        return li - np.log(theta)
+
+    def iPsi(x, theta):
+        return -np.log1p((np.exp(-x * theta) - np.exp(-theta)) / np.expm1(
+            -theta))
+
+    def absdiPsi(x, theta):
+        y = x * theta
+        y = y + log1mexp(y)
+        return np.log(theta) - y
+
+    return max_ddelta(
+        u_values=u_values,
+        absdPsi=absdPsi,
+        iPsi=iPsi,
+        absdiPsi=absdiPsi,
+        constraint=[{'type': 'ineq', 'fun': lambda x: x - 1e-14},
+                    {'type': 'ineq', 'fun': lambda x: 745 - x}]
+    )
 
 
 def copula_clayton_cdf(u_values, theta):
@@ -805,6 +1004,132 @@ def copula_gumbel_cdf(u_values, theta):
             copula[i] += (-np.log(float(u_values[i, j]))) ** (float(theta))
         copula[i] = np.exp(-((copula[i]) ** (1.0 / float(theta))))
     return copula
+
+
+def log_copula_gumbel_cdf(u_values, theta):
+    """
+    compute franck copula cdf
+    :param u_values:
+    :param theta:
+    :return:
+    >>> log_copula_gumbel_cdf(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]),
+    ...    0.1)
+    array([-46736.81306738, -58889.15496375, -55271.78960881,  -6619.27103773,
+           -59042.98546951,  -5657.15892143, -57597.91308742, -59047.18826512,
+           -50986.12317908, -35519.51968965])
+    """
+
+    def s_j(j, alpha, d):
+        if (alpha * float(j)).is_integer() or (
+                alpha == 1.0 and float(int(j) == int(d))
+        ):
+            return (-1.0) ** (float(j) - np.ceil(alpha * float(j)))
+        return 0.0
+
+    def t_theta(ui_values, theta):
+        results = 0.0
+        for j in range(ui_values.shape[0]):
+            results += np.exp(-float(ui_values[j]) ** (1.0 / float(theta)))
+        return results
+
+    def weird_notation(x, y, n):
+        return factorial(float(x) * float(y)) / factorial(float(x) * float(y) -
+                                                          float(n))
+
+    def log_polyG(ui_values, theta):
+        t_theta_i = t_theta(ui_values, theta)
+        alpha = 1.0 / float(theta)
+        logsum = np.empty_like(ui_values)
+        for j in range(ui_values.shape[0]):
+            logsum[j] = np.log(abs(weird_notation(
+                alpha,
+                j + 1,
+                ui_values.shape[0]
+            )))
+            logsum[j] += float(j + 1) * np.log(float(t_theta_i))
+            logsum[j] += float(t_theta_i)
+            logsum[j] -= np.log(factorial(float(j + 1)))
+            logsum[j] += np.log(poisson.cdf(int(ui_values.shape[0] - j + 1),
+                                            float(t_theta_i)))
+            logsum[j] = np.exp(logsum[j])
+            logsum[j] *= s_j(j + 1, alpha, ui_values.shape[0])
+        return lssum(logsum)
+
+    lc_theta = np.empty_like(u_values[:, 0])
+    for i in range(u_values.shape[0]):
+        lc_theta[i] = float(u_values.shape[1]) * np.log(float(theta))
+        lc_theta[i] -= t_theta(u_values[i, :], theta) ** (1.0 / float(theta))
+        lc_theta[i] -= (1.0 / float(theta)) * np.log(t_theta(u_values[i, :],
+                                                             theta))
+        for j in range(u_values.shape[1]):
+            lc_theta[i] += np.log((-np.log(u_values[i, j])) ** (float(theta) -
+                                                                1.0))
+            lc_theta[i] -= np.log(u_values[i, j])
+        lc_theta[i] += log_polyG(u_values[i, :], theta)
+    return lc_theta
+
+
+def diag_copula(u_values):
+    """
+    compute theta for a gumbel copula with DMLE
+    :param u_values:
+    :return: diagonal copula
+    >>> diag_copula(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]))
+    array([0.72122885, 0.48840676, 0.63469281, 0.91851515, 0.34839029,
+           0.99356872, 0.60683747, 0.30158193, 0.73040326, 0.83277053])
+    """
+    y = np.empty_like(u_values[:, 0])
+    for i in range(u_values.shape[0]):
+        y[i] = max(u_values[i, :])
+    return y
+
+
+def DMLE_copula_gumbel(u_values):
+    """
+    compute theta for a gumbel copula with DMLE
+    :param u_values:
+    :return: theta
+    >>> DMLE_copula_gumbel(np.array([
+    ...    [0.72122885, 0.64249391, 0.6771109 ],
+    ...    [0.48840676, 0.36490127, 0.27721709],
+    ...    [0.63469281, 0.4517949 , 0.62365817],
+    ...    [0.87942847, 0.15136347, 0.91851515],
+    ...    [0.34839029, 0.05604025, 0.08416331],
+    ...    [0.48967318, 0.99356872, 0.66912132],
+    ...    [0.60683747, 0.4841944 , 0.22833209],
+    ...    [0.30158193, 0.26186022, 0.05502786],
+    ...    [0.51942063, 0.73040326, 0.25935125],
+    ...    [0.46365886, 0.2459    , 0.83277053]
+    ...    ]))
+    1.5136102146750419
+    """
+    theta = np.log(float(u_values.shape[0])) - lsum(
+        -np.log(diag_copula(u_values))
+    )
+    theta = np.log(float(u_values.shape[1])) / theta
+    return max([theta, 1.0])
 
 
 def copula_gumbel_pdf(u_values, theta):
