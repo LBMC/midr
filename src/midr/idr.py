@@ -1215,28 +1215,100 @@ def m_step_theta(u_values, k_states, params_list, copula):
         params_list[copula]
     )
 
+def samic_delta(copula, params_list, threshold):
+    """
+    Return true if the difference between two iteration of samic if less than
+    the threhsold
+    :param copula: str with the copula name
+    :param params_list: list of model parameters
+    :param threshold: flood withe the minimal difference to reach
+    :return: bool
+    """
+    return max([
+        abs(params_list['pi'] - params_list['pi_old']),
+        abs(params_list[copula]['theta'] - params_list[copula]['theta_old'])
+    ]) >= threshold
 
-def compute_diagonal(u_values):
-    y_values = np.empty_like(u_values[:, 0])
-    for i in range(u_values.shape[0]):
-        y_values[i] = max(u_values[i, :])
-    return y_values
+def samic_e_k(u_values, copula, params_list, k_state):
+    """
+    compute proba for each line to be in one component or the other
+    :param u_values:
+    :param copula:
+    :param params_list:
+    :param k_values:
+    :return:
+    """
+    copula_density = {
+        'clayton': copula_clayton_pdf,
+        'franck': copula_clayton_pdf,
+        'gumbel': copula_gumbel_pdf
+    }
+    k_state = params_list['pi'] / (
+            params_list['pi'] + (
+                1.0 - params_list['pi']
+            ) * copula_density[copula](
+                u_values,
+                params_list[copula]['theta']
+            )
+        )
+    return k_state
 
+def samic_mix(u_values, copula, theta, k_states):
+    """
+    pdf of the samic mixture for a given copula
+    :param u_values:
+    :param copula:
+    :param params_list:
+    :param k_states:
+    :return:
+    """
+    copula_density = {
+        'clayton': copula_clayton_pdf,
+        'franck': copula_clayton_pdf,
+        'gumbel': copula_gumbel_pdf
+    }
+    return lsum(np.log(k_states + (1.0 - k_states) * copula_density[copula](
+        u_values,
+        theta
+    )))
 
-def m_step_grumbel_theta(u_values, k_states, params):
-    y_values = compute_diagonal(u_values)
-    sum_y_values = 0.0
-    for i in range(y_values.shape[0]):
-        sum_y_values += np.log(y_values[i])
-    theta = float(np.log(u_values.shape[1])) / (
-            np.log(u_values.shape[0]) - np.log(
-        sum_y_values
+def samic_min_theta(u_values, copula, k_state):
+    """
+    find theta that minimize the likelihood of the copula density
+    :param u_values:
+    :param copula:
+    :param params_list:
+    :return:
+    """
+    DMLE_copula = {
+        'clayton': DMLE_copula_clayton,
+        'franck': DMLE_copula_franck,
+        'gumbel': DMLE_copula_gumbel
+    }
+    theta_DMLE = DMLE_copula[copula](u_values)
+    return theta_DMLE
+    res = minimize(
+        fun=lambda x: samic_mix(u_values, copula, x, k_state),
+        x0=theta_DMLE,
+        constraints=[
+            {'type': 'ineq', 'fun': lambda x: max([
+                1e-14,
+                theta_DMLE - 0.5
+            ])},
+            {'type': 'ineq', 'fun': lambda x: min([
+                100,
+                theta_DMLE + 0.5
+            ])}
+        ],
+        options={'maxiter': 1000}
     )
-    )
-    return max(theta, 1.0)
+    if res.success:
+        return res.x[0]
+    else:
+        print(res)
+        return np.NaN
 
-
-def samic(x_score, threshold=0.0001, log_name=""):
+def samic(x_score, threshold=1e-4, log_name=""):
     """
     implementation of the samic method for m samples
     :param x_score np.array of score (measures x samples)
@@ -1245,32 +1317,54 @@ def samic(x_score, threshold=0.0001, log_name=""):
     :param log_name str name of the log files
     :return (theta: dict, lidr: list) with thata the model parameters and
     lidr the local idr values for each measures
+    >>> THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
+    >>> THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
+    >>> THETA_TEST = {'pi': 0.2,
+    ...               'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
+    ...               'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
+    ...               'rho': 0.75}
+    >>> DATA = sim_m_samples(n_value=1000,
+    ...                      m_sample=2,
+    ...                      theta_0=THETA_TEST_0,
+    ...                      theta_1=THETA_TEST_1)
+    >>> samic(DATA["X"], threshold=0.01)
     """
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
     copula_list = ["clayton", "franck", "gumbel"]
-    params_list = {}
+    DMLE_copula = {
+        'clayton': DMLE_copula_clayton,
+        'franck': DMLE_copula_franck,
+        'gumbel': DMLE_copula_gumbel
+    }
+    params_list = {
+        'pi': 0.5,
+        'pi_old': np.Inf
+    }
+    k_state = [0.0] * int(u_values.shape[0])
     for copula in copula_list:
-        params_list[copula] = {'pi': 0, 'lambda': 0}
-        k_state = [0.0] * int(x_score.shape[0])
-        lidr = [0.0] * int(x_score.shape[0])
-        params_old = {'pi': np.Inf, 'lambda': np.Inf, 'k': np.Inf}
-        is_change = True
-        while is_change:
-            params_list['pi'] = m_step_pi(k_state)
-            params_list['lambda'] = m_step_lambda(
-                u_values,
-                k_state,
-                params_list,
-                copula,
+        params_list[copula] = {
+            'theta': DMLE_copula[copula](u_values),
+            'theta_old': np.Inf
+        }
+        while samic_delta(copula, params_list, threshold):
+            params_list['pi_old'] = params_list['pi']
+            params_list[copula]['theta_old'] = params_list[copula]['theta']
+            k_state = samic_e_k(
+                u_values=u_values,
+                copula=copula,
+                params_list=params_list,
+                k_state=k_state
             )
-            delta = max([
-                abs(params_list[copula]['pi'] - params_old['pi']),
-                abs(params_list[copula]['lambda'] - params_old['lambda'])
-            ])
-            if (delta < threshold):
-                is_change = False
-            else:
-                params_old = params_list[copula]
+            params_list['pi'] = m_step_pi(
+                k_state=k_state
+            )
+            params_list[copula]['theta'] = samic_min_theta(
+                u_values=u_values,
+                copula=copula,
+                k_state=k_state,
+            )
+            print(params_list)
+    return params_list
 
 
 def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
@@ -1282,7 +1376,6 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     :param log_name str name of the log files
     :return (theta: dict, lidr: list) with thata the model parameters and
     lidr the local idr values for each measures
-
     >>> THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
     >>> THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
     >>> THETA_TEST = {'pi': 0.2,
@@ -1357,6 +1450,17 @@ THETA_INIT = {
 }
 
 if __name__ == "__main__":
+    THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
+    THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
+    THETA_TEST = {'pi': 0.2,
+                  'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
+                  'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
+                  'rho': 0.75}
+    DATA = sim_m_samples(n_value=1000,
+                         m_sample=2,
+                         theta_0=THETA_TEST_0,
+                         theta_1=THETA_TEST_1)
+    samic(DATA["X"], threshold=0.01)
     import doctest
 
     doctest.testmod()
