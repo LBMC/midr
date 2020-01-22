@@ -25,7 +25,7 @@ from scipy.optimize import brentq
 from scipy.optimize import minimize
 from scipy.special import gammaln
 from scipy.special import factorial
-from scipy.special import comb
+from scipy.special import binom
 import numpy as np
 from mpmath import polylog
 import pandas as pd
@@ -550,17 +550,15 @@ def em_pseudo_data(z_values,
     return theta_t1, k_state, logger
 
 
-def lsum(x_values):
+def lsum(x):
     """
     compute log sum_i x_i
-    :param x_values:
+    :param x:
     :return:
     """
-    b_max = np.log(float(max(x_values)))
-    results = 0.0
-    for i in range(x_values.shape[0]):
-        results += np.exp(np.log(float(x_values[i])) - b_max)
-    return b_max + np.log(results)
+    lx = np.log(x)
+    x_max = max(lx)
+    return x_max + np.log(np.sum(np.exp(lx - x_max), axis=0))
 
 
 def lssum(x_values):
@@ -1232,72 +1230,6 @@ def DMLE_copula_gumbel(u_values):
     return max([theta, 1.0])
 
 
-def copula_gumbel_pdf(u_values, theta):
-    """
-    compute franck copula cdf
-    :param u_values:
-    :param theta:
-    :return:
-    >>> copula_gumbel_pdf(np.array([
-    ...    [0.72122885, 0.64249391, 0.6771109 ],
-    ...    [0.48840676, 0.36490127, 0.27721709],
-    ...    [0.63469281, 0.4517949 , 0.62365817],
-    ...    [0.87942847, 0.15136347, 0.91851515],
-    ...    [0.34839029, 0.05604025, 0.08416331],
-    ...    [0.48967318, 0.99356872, 0.66912132],
-    ...    [0.60683747, 0.4841944 , 0.22833209],
-    ...    [0.30158193, 0.26186022, 0.05502786],
-    ...    [0.51942063, 0.73040326, 0.25935125],
-    ...    [0.46365886, 0.2459    , 0.83277053]
-    ...    ]),
-    ...    10)
-    array([7.42521510e-08, 3.64657594e+04, 2.65790744e-03, 2.09134412e-11,
-           1.35612755e+14, 3.18333298e-21, 1.95157053e+02, 7.28167691e+11,
-           3.73452995e-01, 1.78052724e-02])
-    """
-    copula = np.empty_like(u_values[:, 0])
-    alpha = 1.0 / float(theta)
-
-    def t_theta(u_value, theta):
-        """
-        compute the sum of generator^-1
-        :param u_value:
-        :param theta:
-        :return:
-        """
-        generator_1 = 0.0
-        for j in range(u_value.shape[0]):
-            generator_1 += np.exp(-float(u_value[j]) ** (1.0 / float(theta)))
-        return generator_1
-
-    def a_g(alpha, d, k):
-        ag_res = factorial(float(d)) / factorial(float(k))
-        for j in range(k):
-            ag_res += float(
-                comb(float(k), float(j))
-            ) * float(
-                comb(alpha * float(j), float(d))
-            ) * ((-1.0) ** (float(d) - float(j)))
-        return ag_res
-
-    def p_g(x, d, alpha):
-        pg_res = 0
-        for k in range(d):
-            pg_res += a_g(alpha, d, k) * (float(x) ** float(k))
-        return pg_res
-
-    for i in range(u_values.shape[0]):
-        copula[i] = float(theta) ** u_values.shape[1]
-        t_theta_i = t_theta(u_values[i, :], theta)
-        copula[i] *= np.exp(-t_theta_i ** alpha)
-        copula_num = 1.0
-        copula_denum = t_theta_i ** float(u_values.shape[1])
-        for j in range(u_values.shape[1]):
-            copula_num *= (- np.log(u_values[i, j])) ** (float(theta) - 1)
-            copula_denum *= u_values[i, j]
-        copula[i] *= (copula_num / copula_denum)
-        copula[i] *= p_g(t_theta_i, u_values.shape[1], alpha)
-    return copula
 
 def ipsi_frank(u_values, theta, is_log=False):
     """
@@ -1576,6 +1508,234 @@ def pdf_frank(u_values, theta, is_log = False):
         return np.log(copula)
     return copula
 
+def ipsi_gumbel(u_values, theta, is_log=False):
+    """
+    Compute iPsi function for gumbel copula
+    :param u_values:
+    :param theta:
+    :param is_log:
+    :return:
+    >>> ipsi_gumbel(np.array([
+    ...   [0.42873569, 0.18285458, 0.9514195],
+    ...   [0.25148149, 0.05617784, 0.3378213],
+    ...   [0.79410993, 0.76175687, 0.0709562],
+    ...   [0.02694249, 0.45788802, 0.6299574],
+    ...   [0.39522060, 0.02189511, 0.6332237],
+    ...   [0.66878367, 0.38075101, 0.5185625],
+    ...   [0.90365653, 0.19654621, 0.6809525],
+    ...   [0.28607729, 0.82713755, 0.7686878],
+    ...   [0.22437343, 0.16907646, 0.5740400],
+    ...   [0.66752741, 0.69487362, 0.3329266]
+    ...   ]),
+    ...   1.2)
+    array([[0.81923327, 1.88908593, 0.02733237],
+           [1.47231458, 3.55739554, 1.10313864],
+           [0.17190186, 0.20976237, 3.21401011],
+           [4.67297101, 0.74347847, 0.3959922 ],
+           [0.91460233, 4.99665702, 0.39068015],
+           [0.33531508, 0.95887481, 0.60372092],
+           [0.06408581, 1.79316182, 0.31736126],
+           [1.30892336, 0.13611697, 0.20141246],
+           [1.61947932, 1.99408403, 0.49340591],
+           [0.33719654, 0.29741158, 1.1209654 ]])
+    >>> ipsi_gumbel(np.array([
+    ...   [0.42873569, 0.18285458, 0.9514195],
+    ...   [0.25148149, 0.05617784, 0.3378213],
+    ...   [0.79410993, 0.76175687, 0.0709562],
+    ...   [0.02694249, 0.45788802, 0.6299574],
+    ...   [0.39522060, 0.02189511, 0.6332237],
+    ...   [0.66878367, 0.38075101, 0.5185625],
+    ...   [0.90365653, 0.19654621, 0.6809525],
+    ...   [0.28607729, 0.82713755, 0.7686878],
+    ...   [0.22437343, 0.16907646, 0.5740400],
+    ...   [0.66752741, 0.69487362, 0.3329266]
+    ...   ]),
+    ...   1.2, is_log=True)
+    array([[-0.19938642,  0.63609307, -3.59968356],
+           [ 0.38683571,  1.26902869,  0.09815943],
+           [-1.76083155, -1.56177998,  1.16751941],
+           [ 1.54179506, -0.29641547, -0.92636075],
+           [-0.08926592,  1.60876909, -0.93986609],
+           [-1.09268464, -0.04199476, -0.50464323],
+           [-2.74753233,  0.58398044, -1.14771453],
+           [ 0.26920494, -1.9942407 , -1.60240044],
+           [ 0.48210469,  0.69018481, -0.70642309],
+           [-1.08708931, -1.21263832,  0.11419028]])
+    """
+    if is_log:
+        return theta * np.log(-np.log(u_values))
+    return (-np.log(u_values)) ** theta
+
+
+def psi_gumbel(u_values, theta):
+    """
+    Compute Psi function for Frank copula
+    :param u_values:
+    :param theta:
+    :param is_log:
+    :return:
+    >>> psi_gumbel(np.array([
+    ...   [0.42873569, 0.18285458, 0.9514195],
+    ...   [0.25148149, 0.05617784, 0.3378213],
+    ...   [0.79410993, 0.76175687, 0.0709562],
+    ...   [0.02694249, 0.45788802, 0.6299574],
+    ...   [0.39522060, 0.02189511, 0.6332237],
+    ...   [0.66878367, 0.38075101, 0.5185625],
+    ...   [0.90365653, 0.19654621, 0.6809525],
+    ...   [0.28607729, 0.82713755, 0.7686878],
+    ...   [0.22437343, 0.16907646, 0.5740400],
+    ...   [0.66752741, 0.69487362, 0.3329266]
+    ...   ]),
+    ...   1.2)
+    array([[0.61034427, 0.78449875, 0.38314216],
+           [0.72866953, 0.91322228, 0.66711104],
+           [0.43814072, 0.45063321, 0.89558443],
+           [0.95198356, 0.59359729, 0.50641834],
+           [0.63043035, 0.95944934, 0.50493238],
+           [0.48911264, 0.63939466, 0.56071577],
+           [0.39890033, 0.77277837, 0.48384529],
+           [0.70297971, 0.42582847, 0.44791995],
+           [0.74988568, 0.79662481, 0.53276337],
+           [0.48966058, 0.47790784, 0.67038358]])
+    """
+    return np.exp(-u_values ** (1.0 / theta))
+
+def diag_pdf_gumbel(u_values, theta, is_log=False):
+    """
+    compute frank copula diagonal pdf
+    :param u_values:
+    :param theta:
+    :return:
+    >>> diag_pdf_gumbel(np.array([
+    ...    [0.42873569, 0.18285458, 0.9514195],
+    ...    [0.25148149, 0.05617784, 0.3378213],
+    ...    [0.79410993, 0.76175687, 0.0709562],
+    ...    [0.02694249, 0.45788802, 0.6299574],
+    ...    [0.39522060, 0.02189511, 0.6332237],
+    ...    [0.66878367, 0.38075101, 0.5185625],
+    ...    [0.90365653, 0.19654621, 0.6809525],
+    ...    [0.28607729, 0.82713755, 0.7686878],
+    ...    [0.22437343, 0.16907646, 0.5740400],
+    ...    [0.66752741, 0.69487362, 0.3329266]
+    ...    ]),
+    ...    0.2,
+    ...    is_log=True)
+    array([  -6.55858673, -257.13458817,  -50.29601565, -106.33588414,
+           -105.08436706,  -91.86224008,  -19.02297494,  -40.4347328 ,
+           -128.83053864,  -82.60105914])
+    >>> diag_pdf_gumbel(np.array([
+    ...    [0.42873569, 0.18285458, 0.9514195],
+    ...    [0.25148149, 0.05617784, 0.3378213],
+    ...    [0.79410993, 0.76175687, 0.0709562],
+    ...    [0.02694249, 0.45788802, 0.6299574],
+    ...    [0.39522060, 0.02189511, 0.6332237],
+    ...    [0.66878367, 0.38075101, 0.5185625],
+    ...    [0.90365653, 0.19654621, 0.6809525],
+    ...    [0.28607729, 0.82713755, 0.7686878],
+    ...    [0.22437343, 0.16907646, 0.5740400],
+    ...    [0.66752741, 0.69487362, 0.3329266]
+    ...    ]),
+    ...    0.2,
+    ...    is_log=False)
+    array([1.41788815e-003, 2.12748865e-112, 1.43455743e-022, 6.59040780e-047,
+           2.30377070e-046, 1.27272929e-040, 5.47553997e-009, 2.75054445e-018,
+           1.12100608e-056, 1.33910865e-036])
+    """
+    y = diag_copula(u_values)
+    d = float(u_values.shape[1])
+    alpha = 1.0 / theta
+    da = d ** alpha
+    if is_log:
+        return (da - 1.0) * np.log(y) + alpha * np.log(d)
+    return da * y ** (da - 1.0)
+
+def pdf_gumbel(u_values, theta, is_log = False):
+    """
+    compute frank copula pdf
+    :param u_values:
+    :param theta:
+    :return:
+    >>> pdf_gumbel(np.array([
+    ...    [0.42873569, 0.18285458, 0.9514195],
+    ...    [0.25148149, 0.05617784, 0.3378213],
+    ...    [0.79410993, 0.76175687, 0.0709562],
+    ...    [0.02694249, 0.45788802, 0.6299574],
+    ...    [0.39522060, 0.02189511, 0.6332237],
+    ...    [0.66878367, 0.38075101, 0.5185625],
+    ...    [0.90365653, 0.19654621, 0.6809525],
+    ...    [0.28607729, 0.82713755, 0.7686878],
+    ...    [0.22437343, 0.16907646, 0.5740400],
+    ...    [0.66752741, 0.69487362, 0.3329266]
+    ...    ]),
+    ...    1.2,
+    ...    is_log=False)
+    array([0.62097606, 1.39603813, 0.58225969, 0.85072331, 0.88616848,
+           1.10022557, 0.66461897, 0.33769735, 1.15561848, 1.01957628])
+    >>> pdf_gumbel(np.array([
+    ...    [0.42873569, 0.18285458, 0.9514195],
+    ...    [0.25148149, 0.05617784, 0.3378213],
+    ...    [0.79410993, 0.76175687, 0.0709562],
+    ...    [0.02694249, 0.45788802, 0.6299574],
+    ...    [0.39522060, 0.02189511, 0.6332237],
+    ...    [0.66878367, 0.38075101, 0.5185625],
+    ...    [0.90365653, 0.19654621, 0.6809525],
+    ...    [0.28607729, 0.82713755, 0.7686878],
+    ...    [0.22437343, 0.16907646, 0.5740400],
+    ...    [0.66752741, 0.69487362, 0.3329266]
+    ...    ]),
+    ...    1.2,
+    ...    is_log=True)
+    array([-0.47646275,  0.33363832, -0.54083873, -0.16166834, -0.12084819,
+            0.09551522, -0.40854139, -1.08560521,  0.14463568,  0.01938713])
+    """
+
+    def s_j(j, alpha, d):
+        assert 0.0 < alpha
+        assert alpha <= 1.0
+        assert d >= 0.0 and 0.0 <= float(j)
+        if alpha == 1.0:
+            if int(j) == int(d):
+                return 1.0
+            else:
+                return (-1.0)**(d-float(j))
+        else:
+            x = alpha * float(j)
+            if x != np.floor(x):
+                return (-1.0)**(float(j)-np.ceil(x))
+            else:
+                return 0.0
+        return np.NaN
+
+    def log_polyG(lx, alpha, d):
+        res = np.zeros(shape=int(d))
+        x = np.exp(lx)
+        for j in range(1, int(d) + 1):
+            res[j-1] += np.log(abs(binom(alpha * float(j), d))) + np.log(
+                factorial(d))
+            res[j-1] += float(j) * lx
+            res[j-1] += x - np.log(factorial(float(j)))
+            res[j-1] += poisson.logcdf(d - float(j), x)
+            res[j-1] = s_j(j, alpha, d) * np.exp(res[j-1])
+        return lssum(res)
+
+    d = float(u_values.shape[1])
+    alpha = 1.0 / theta
+    lip = ipsi_gumbel(u_values, theta, is_log=False)
+    lnt = np.zeros(shape=u_values.shape[0])
+    for i in range(u_values.shape[0]):
+        lnt[i] = lsum(lip[i, :])
+    mlu = -np.log(u_values)
+    lmlu = np.log(mlu)
+    lx = alpha * lnt
+    ls = np.zeros(shape=u_values.shape[0])
+    for i in range(u_values.shape[0]):
+        ls[i] = log_polyG(lx[i], alpha, d) - d * lx[i] / alpha
+    lnC = -np.exp(lx)
+    dcopula = lnC + d * np.log(theta) + np.sum((theta - 1.0) * lmlu + mlu,
+                                               axis=1) + ls
+    if is_log:
+        return dcopula
+    return np.exp(dcopula)
 
 def m_step_theta(u_values, k_states, params_list, copula):
     """
