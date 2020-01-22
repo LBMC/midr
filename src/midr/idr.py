@@ -20,19 +20,13 @@ from scipy.stats import rankdata
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
-from scipy.stats import poisson
 from scipy.optimize import brentq
 from scipy.optimize import minimize
-from scipy.special import gammaln
-from scipy.special import factorial
-from scipy.special import binom
 import numpy as np
-from mpmath import polylog
 import pandas as pd
 import midr.log as log
 
-import matplotlib.pyplot as plt
-
+import archimedean
 
 def cov_matrix(m_sample, theta):
     """
@@ -588,9 +582,9 @@ def samic_e_k(u_values, copula, params_list, k_state):
     :return:
     """
     copula_density = {
-        'clayton': copula_clayton_pdf,
-        'franck': copula_clayton_pdf,
-        'gumbel': copula_gumbel_pdf
+        'clayton': archimedean.pdf_clayton,
+        'franck': archimedean.pdf_frank,
+        'gumbel': archimedean.pdf_gumbel
     }
     k_state = params_list['pi'] / (
             params_list['pi'] + (
@@ -612,11 +606,12 @@ def samic_mix(u_values, copula, theta, k_states):
     :return:
     """
     copula_density = {
-        'clayton': copula_clayton_pdf,
-        'franck': copula_clayton_pdf,
-        'gumbel': copula_gumbel_pdf
+        'clayton': archimedean.pdf_clayton,
+        'franck': archimedean.pdf_frank,
+        'gumbel': archimedean.pdf_gumbel
     }
-    return lsum(np.log(k_states + (1.0 - k_states) * copula_density[copula](
+    return archimedean.lsum(np.log(k_states + (1.0 - k_states) *
+                                   copula_density[copula](
         u_values,
         theta
     )))
@@ -630,9 +625,9 @@ def samic_min_theta(u_values, copula, k_state):
     :return:
     """
     DMLE_copula = {
-        'clayton': DMLE_copula_clayton,
-        'franck': DMLE_copula_franck,
-        'gumbel': DMLE_copula_gumbel
+        'clayton': archimedean.dmle_copula_clayton,
+        'franck': archimedean.dmle_copula_franck,
+        'gumbel': archimedean.dmle_copula_gumbel
     }
     theta_DMLE = DMLE_copula[copula](u_values)
     return theta_DMLE
@@ -681,9 +676,9 @@ def samic(x_score, threshold=1e-4, log_name=""):
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
     copula_list = ["clayton", "franck", "gumbel"]
     DMLE_copula = {
-        'clayton': DMLE_copula_clayton,
-        'franck': DMLE_copula_franck,
-        'gumbel': DMLE_copula_gumbel
+        'clayton': archimedean.dmle_copula_clayton,
+        'franck': archimedean.dmle_copula_franck,
+        'gumbel': archimedean.dmle_copula_gumbel
     }
     params_list = {
         'pi': 0.5,
