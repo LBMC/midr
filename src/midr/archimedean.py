@@ -590,8 +590,9 @@ def diag_pdf_frank(u_values, theta, is_log=False):
         ep = ((np.exp(-x) - np.exp(x - theta)) / (-np.expm1(-x)))
         delt = np.exp(-x) * (1.0 + ep)
         d1 = d - 1.0
-        dcom = d + d1 * ep + (1.0 + ep) * delt
-        return delt, dcom, d1
+        dcom = d + d1 * ep
+        dcom_time = (1.0 + ep) * delt
+        return delt, dcom, dcom_time, d1
 
     def ddiagepoly2(x):
         """
@@ -599,10 +600,11 @@ def diag_pdf_frank(u_values, theta, is_log=False):
         :param x:
         :return:
         """
-        delt, dcom, d1 = delt_dcom(x)
+        delt, dcom, dcom_time, d1 = delt_dcom(x)
         res = d1 * (d - 2.0) / 2.0 * (1.0 + (d - 3.0) / 3.0 *
                                       delt)
-        res *= dcom
+        res *= dcom_time
+        res += dcom
         if is_log:
             return np.log(d) - np.log(res)
         return d / res
@@ -613,13 +615,14 @@ def diag_pdf_frank(u_values, theta, is_log=False):
         :param x:
         :return:
         """
-        delt, dcom, d1 = delt_dcom(x)
+        delt, dcom, dcom_time, d1 = delt_dcom(x)
         res = (d - 1.0) * (d - 2.0) / 2.0 * (1.0 + (d - 3.0) / 3.0 *
                                              delt *
                                              (1 + (d - 4.0) / 4.0 * delt * (
                                                      1.0 + (d - 5.0) / 5 * delt
                                              )))
-        res *= dcom
+        res *= dcom_time
+        res += dcom
         if is_log:
             return np.log(d) - np.log(res)
         return d / res
