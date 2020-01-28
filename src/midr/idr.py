@@ -28,6 +28,8 @@ import midr.log as log
 
 import archimedean
 
+import matplotlib.pyplot as plt
+
 def cov_matrix(m_sample, theta):
     """
     compute multivariate_normal covariance matrix
@@ -69,17 +71,20 @@ def sim_multivariate_gaussian(n_value, m_sample, theta):
         {'mu': 1, 'rho': 0.5, 'sigma': 1})[:,0]) < 1.1
     True
     """
-    cov = cov_matrix(m_sample=m_sample,
-                     theta=theta)
-    return np.random.multivariate_normal(mean=[float(theta['mu'])] *
-                                              int(m_sample),
-                                         cov=cov,
-                                         size=int(n_value))
+    cov = cov_matrix(
+        m_sample=m_sample,
+        theta=theta
+    )
+    return np.random.multivariate_normal(
+        mean=[float(theta['mu'])] * int(m_sample),
+        cov=cov,
+        size=int(n_value)
+    )
 
 
 def sim_m_samples(n_value, m_sample,
-                  theta_0={'pi': 0.2, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0},
-                  theta_1={'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}):
+                  theta_0,
+                  theta_1):
     """
     simulate sample where position score are drawn from two different
     multivariate Gaussian distribution
@@ -155,12 +160,15 @@ def g_function(z_values, theta):
     """
     compute scalded Gaussian cdf for Copula
     """
-    sigma = np.sqrt(float(theta['sigma']))
-    f_pi = float(theta['pi'])  # / sigma
-    return f_pi * norm.cdf(float(z_values),
-                           loc=float(theta['mu']),
-                           scale=np.sqrt(float(theta['sigma']))) + \
-           (1.0 - f_pi) * norm.cdf(float(z_values), loc=0.0, scale=1.0)
+    f_pi = float(theta['pi'])
+    return f_pi * norm.cdf(
+        float(z_values),
+        loc=float(theta['mu']),
+        scale=np.sqrt(float(theta['sigma']))) + (1.0 - f_pi) * norm.cdf(
+        float(z_values),
+        loc=0.0,
+        scale=1.0
+    )
 
 
 def compute_grid(theta,
@@ -226,7 +234,8 @@ def z_from_u(u_values, function, grid, thread_num=mp.cpu_count()):
     Compute z_values from u_values
     :param u_values: list of u_values
     :param function: g_function
-    :param theta: g_function parameter
+    :param grid:
+    :param thread_num
     :return: list of z_value
 
     >>> z_from_u(
@@ -289,8 +298,6 @@ def compute_z_from_u(u_values, theta):
     """
     grid = compute_grid(
         theta=theta,
-        function=g_function,
-        size=1000,
         z_start=norm.ppf(np.amin(u_values), loc=-abs(theta['mu'])) - 1.0,
         z_stop=norm.ppf(np.amax(u_values), loc=abs(theta['mu'])) + 1.0
     )
@@ -312,10 +319,11 @@ def h_function(z_values, m_sample, theta):
     """
     cov = cov_matrix(m_sample=int(m_sample), theta=theta)
     try:
-        x_values = multivariate_normal.pdf(x=z_values,
-                                           mean=[float(theta['mu'])] *
-                                                int(m_sample),
-                                           cov=cov)
+        x_values = multivariate_normal.pdf(
+            x=z_values,
+            mean=[float(theta['mu'])] * int(m_sample),
+            cov=cov
+        )
         return pd.Series(x_values)
     except ValueError as err:
         log.LOGGER.exception("%s", "error: h_function: " + str(err))
@@ -470,8 +478,13 @@ def em_pseudo_data(z_values,
     ...               'mu': 2.0,
     ...               'sigma': 3.0,
     ...               'rho': 0.65}
+    >>> THETA_0 = {'pi': 0.2,
+    ...            'mu': 0.0,
+    ...            'sigma': 1.0,
+    ...            'rho': 0.0}
     >>> DATA = sim_m_samples(n_value=1000,
     ...                      m_sample=2,
+    ...                      theta_0=THETA_0,
     ...                      theta_1=THETA_TEST)
     >>> (THETA_RES, KSTATE, LIDR) = em_pseudo_data(
     ...    z_values=DATA["X"],
@@ -543,6 +556,7 @@ def em_pseudo_data(z_values,
         )
     return theta_t1, k_state, logger
 
+
 def m_step_theta(u_values, k_states, params_list, copula):
     """
     wrapper function to compute lambda for the right copula
@@ -558,6 +572,7 @@ def m_step_theta(u_values, k_states, params_list, copula):
         params_list[copula]
     )
 
+
 def samic_delta(copula, params_list, threshold):
     """
     Return true if the difference between two iteration of samic if less than
@@ -572,13 +587,13 @@ def samic_delta(copula, params_list, threshold):
         abs(params_list[copula]['theta'] - params_list[copula]['theta_old'])
     ]) >= threshold
 
-def samic_e_k(u_values, copula, params_list, k_state):
+
+def samic_e_k(u_values, copula, params_list):
     """
     compute proba for each line to be in one component or the other
     :param u_values:
     :param copula:
     :param params_list:
-    :param k_values:
     :return:
     """
     copula_density = {
@@ -589,19 +604,21 @@ def samic_e_k(u_values, copula, params_list, k_state):
     k_state = params_list['pi'] / (
             params_list['pi'] + (
                 1.0 - params_list['pi']
-            ) * copula_density[copula](
+            ) * np.exp(copula_density[copula](
                 u_values,
-                params_list[copula]['theta']
-            )
+                params_list[copula]['theta'],
+                is_log=True
+            ))
         )
     return k_state
+
 
 def samic_mix(u_values, copula, theta, k_states):
     """
     pdf of the samic mixture for a given copula
     :param u_values:
     :param copula:
-    :param params_list:
+    :param theta:
     :param k_states:
     :return:
     """
@@ -610,55 +627,94 @@ def samic_mix(u_values, copula, theta, k_states):
         'franck': archimedean.pdf_frank,
         'gumbel': archimedean.pdf_gumbel
     }
-    return archimedean.lsum(np.log(k_states + (1.0 - k_states) *
-                                   copula_density[copula](
-        u_values,
-        theta
-    )))
+    return np.sum(
+        np.log(
+            1.0 - k_states
+        ) + copula_density[copula](u_values, theta, is_log=True)
+    )
+
 
 def samic_min_theta(u_values, copula, k_state):
     """
     find theta that minimize the likelihood of the copula density
     :param u_values:
     :param copula:
-    :param params_list:
+    :param k_states:
     :return:
     """
-    DMLE_copula = {
+    dmle_copula = {
         'clayton': archimedean.dmle_copula_clayton,
         'franck': archimedean.dmle_copula_franck,
         'gumbel': archimedean.dmle_copula_gumbel
     }
-    theta_DMLE = DMLE_copula[copula](u_values)
-    return theta_DMLE
-    res = minimize(
-        fun=lambda x: samic_mix(u_values, copula, x, k_state),
-        x0=theta_DMLE,
-        constraints=[
+    theta_dmle = dmle_copula[copula](u_values)
+    constraints = {
+        'clayton': [
             {'type': 'ineq', 'fun': lambda x: max([
                 1e-14,
-                theta_DMLE - 0.5
+                theta_dmle - 0.5
             ])},
             {'type': 'ineq', 'fun': lambda x: min([
-                100,
-                theta_DMLE + 0.5
+                1000 - x,
+                theta_dmle + 0.5
             ])}
         ],
+        'franck': [
+            {'type': 'ineq', 'fun': lambda x: max([
+                x - 1e-14,
+                theta_dmle - 0.5
+            ])},
+            {'type': 'ineq', 'fun': lambda x: min([
+                745 - x,
+                theta_dmle + 0.5
+            ])}
+        ],
+        'gumbel': [
+            {'type': 'ineq', 'fun': lambda x: max([
+                1.0,
+                theta_dmle - 0.5
+            ])},
+            {'type': 'ineq', 'fun': lambda x: min([
+                1000 - x,
+                max([1.1, theta_dmle + 0.5])
+            ])}
+        ]
+    }
+    print("theta dmle [" + copula + "] = " + str(theta_dmle))
+
+    x_axis = np.linspace(start=1e-14, stop=100, num=100)
+    if copula == "gumbel":
+        x_axis = np.linspace(start=1.0, stop=100, num=100)
+    y_axis = np.empty_like(x_axis)
+    for i in range(x_axis.shape[0]):
+        y_axis[i] = samic_mix(u_values, copula, x_axis[i], k_state)
+    print(x_axis)
+    print(y_axis)
+    plt.subplot()
+    plt.scatter(x_axis,
+                y_axis)
+    plt.savefig(copula + ".pdf")
+    plt.clf()
+    return theta_dmle
+    res = minimize(
+        fun=lambda x: samic_mix(u_values, copula, x, k_state),
+        x0=theta_dmle,
+        constraints=constraints[copula],
         options={'maxiter': 1000}
     )
     if res.success:
         return res.x[0]
     else:
         print(res)
-        return np.NaN
+        return theta_dmle
 
-def samic(x_score, threshold=1e-4, log_name=""):
+
+def samic(x_score, threshold=1e-4):
     """
     implementation of the samic method for m samples
     :param x_score np.array of score (measures x samples)
     :param threshold float min delta between every parameters between two
     iterations
-    :param log_name str name of the log files
     :return (theta: dict, lidr: list) with thata the model parameters and
     lidr the local idr values for each measures
     >>> THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
@@ -674,8 +730,8 @@ def samic(x_score, threshold=1e-4, log_name=""):
     >>> samic(DATA["X"], threshold=0.01)
     """
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
-    copula_list = ["clayton", "franck", "gumbel"]
-    DMLE_copula = {
+    copula_list = ["clayton", "franck"]
+    dmle_copula = {
         'clayton': archimedean.dmle_copula_clayton,
         'franck': archimedean.dmle_copula_franck,
         'gumbel': archimedean.dmle_copula_gumbel
@@ -684,10 +740,9 @@ def samic(x_score, threshold=1e-4, log_name=""):
         'pi': 0.5,
         'pi_old': np.Inf
     }
-    k_state = [0.0] * int(u_values.shape[0])
     for copula in copula_list:
         params_list[copula] = {
-            'theta': DMLE_copula[copula](u_values),
+            'theta': dmle_copula[copula](u_values),
             'theta_old': np.Inf
         }
         while samic_delta(copula, params_list, threshold):
@@ -697,7 +752,6 @@ def samic(x_score, threshold=1e-4, log_name=""):
                 u_values=u_values,
                 copula=copula,
                 params_list=params_list,
-                k_state=k_state
             )
             params_list['pi'] = m_step_pi(
                 k_state=k_state
@@ -783,7 +837,7 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
         str(log_name) + "_classif.pdf"
     )
     log.LOGGER.debug("%s", str(theta_t1))
-    return (theta_t1, lidr)
+    return theta_t1, lidr
 
 
 THETA_INIT = {
