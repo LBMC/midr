@@ -656,6 +656,79 @@ def diag_pdf_frank(u_values, theta, is_log=False):
     mapping_function = np.vectorize(mapping_function)
     return mapping_function(yt)
 
+def eulerian(n, m):
+    dp = [[0 for x in range(m+1)]
+             for y in range(n+1)]
+
+    # For each row from 1 to n
+    for i in range(1, n+1):
+
+        # For each column from 0 to m
+        for j in range(0, m+1):
+
+            # If i is greater than j
+            if (i > j):
+                # If j is 0, then make that
+                # state as 1.
+
+                if (j == 0):
+                    dp[i][j] = 1
+
+                # basic recurrence relation.
+                else :
+                    dp[i][j] = (((i - j) *
+                       dp[i - 1][j - 1]) +
+                       ((j + 1) * dp[i - 1][j]))
+
+    return dp[n][m]
+
+def eulerian_all(n):
+    """
+    compute eulerian number
+    :param n:
+    :return:
+    >>> eulerian_all(10)
+    array([1.000000e+00, 1.013000e+03, 4.784000e+04, 4.551920e+05,
+           1.310354e+06, 1.310354e+06, 4.551920e+05, 4.784000e+04,
+           1.013000e+03, 1.000000e+00])
+    """
+    res = np.zeros(shape=n)
+    for i in range(n):
+        res[i] = eulerian(n, i)
+    return res
+
+def polyneval(coef, x):
+    """
+
+    :param coef:
+    :param x:
+    :return:
+    >>> polyneval(eulerian_all(10), [-4, -3])
+    array([1.12058925e+08, 9.69548800e+06])
+    """
+    vpolyval = np.vectorize(np.polyval, excluded=['p'])
+    return vpolyval(p=coef, x=x)
+
+def polylog(z, s, is_log_z=False):
+    """
+
+    :param z:
+    :param s:
+    :return:
+    >>> polylog(np.array([0.01556112, 0.00108968, 0.00889932]), -2)
+    array([-4.1004881 , -6.81751129, -4.68610299])
+    """
+    if is_log_z:
+        w = z
+        z = np.exp(w)
+    n = -int(s)
+    Eun = eulerian_all(n)
+    p = polyneval(Eun, z)
+    if is_log_z:
+        return np.log(p) + w - (n + 1.0) * log1mexp(-w)
+    else:
+        return np.log(p) + np.log(z) - (n + 1.0) * np.log1p(-z)
+
 
 def pdf_frank(u_values, theta, is_log=False):
     """
@@ -696,22 +769,23 @@ def pdf_frank(u_values, theta, is_log=False):
     array([-0.05344249,  0.07193155, -0.09301939, -0.01950997, -0.00858989,
            -0.00607522, -0.06014914, -0.03120961,  0.02245848, -0.01418388])
     """
-    copula = np.empty_like(u_values[:, 0])
-    for i in range(u_values.shape[0]):
-        copula[i] = (float(theta) /
-                     (1.0 - np.exp(-float(theta)))
-                     ) ** (float(u_values.shape[1]) - 1.0)
-        h_res_i = (1.0 - np.exp(-float(theta))
-                   ) ** (1.0 - float(u_values.shape[1]))
-        sum_ui = 0.0
-        for j in range(u_values.shape[1]):
-            h_res_i *= (1.0 - np.exp(-float(theta) * float(u_values[i, j])))
-            sum_ui += float(u_values[i, j])
-        copula[i] *= polylog(-(float(u_values.shape[1]) - 1.0), h_res_i)
-        copula[i] *= np.exp(-float(theta) * sum_ui) / h_res_i
+    if theta == 0.0:
+        copula = np.zeros(shape=u_values.shape[0])
+    else:
+        d = float(u_values.shape[1])
+        usum = np.sum(u_values, axis=1)
+        lp = log1mexp(theta)
+        lpu = log1mexp(theta * u_values)
+        lu = np.sum(lpu, axis=1)
+        liarg = -np.expm1(-theta) * np.exp(np.sum(lpu-lp, axis=1))
+        li = polylog(
+            liarg,
+            -(d - 1.0)
+        )
+        copula = (d - 1.0) * np.log(theta) + li - theta * usum - lu
     if is_log:
-        return np.log(copula)
-    return copula
+        return copula
+    return np.exp(copula)
 
 
 def ipsi_gumbel(u_values, theta, is_log=False):
