@@ -651,7 +651,7 @@ def samic_min_theta(u_values, copula, k_state):
     constraints = {
         'clayton': [
             {'type': 'ineq', 'fun': lambda x: max([
-                1e-14,
+                x - 1e-14,
                 theta_dmle - 0.5
             ])},
             {'type': 'ineq', 'fun': lambda x: min([
@@ -682,9 +682,29 @@ def samic_min_theta(u_values, copula, k_state):
     }
     print("theta dmle [" + copula + "] = " + str(theta_dmle))
 
-    x_axis = np.linspace(start=1e-14, stop=100, num=100)
+    x_axis = np.linspace(
+        start=max([
+            1e-14,
+            theta_dmle - 0.5
+        ]),
+        stop=min([
+            1000,
+            theta_dmle + 0.5
+        ]),
+        num=100
+    )
     if copula == "gumbel":
-        x_axis = np.linspace(start=1.0, stop=100, num=100)
+        x_axis = np.linspace(
+            start=max([
+                1.0,
+                theta_dmle - 0.5
+            ]),
+            stop=min([
+                1000,
+                max([1.1, theta_dmle + 0.5])
+            ]),
+            num=101
+        )
     y_axis = np.empty_like(x_axis)
     for i in range(x_axis.shape[0]):
         y_axis[i] = samic_mix(u_values, copula, x_axis[i], k_state)
@@ -730,7 +750,7 @@ def samic(x_score, threshold=1e-4):
     >>> samic(DATA["X"], threshold=0.01)
     """
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
-    copula_list = ["clayton", "franck"]
+    copula_list = ["gumbel"]
     dmle_copula = {
         'clayton': archimedean.dmle_copula_clayton,
         'franck': archimedean.dmle_copula_franck,
