@@ -17,6 +17,7 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.special import factorial
 from scipy.special import binom
+from scipy.special import logsumexp
 from scipy.stats import poisson
 from mpmath import polylog
 
@@ -26,10 +27,10 @@ def lsum(x):
     compute log sum_i x_i
     :param x:
     :return:
+    >>> lsum(np.array([1, 2, 3, 4]))
+    4.440189698561196
     """
-    lx = np.log(x)
-    x_max = max(lx)
-    return x_max + np.log(np.sum(np.exp(lx - x_max), axis=0))
+    return logsumexp(x)
 
 
 def lssum(x_values):
@@ -162,12 +163,12 @@ def dmle_copula_clayton(u_values):
     )
 
 
-def dmle_copula_franck(u_values):
+def dmle_copula_frank(u_values):
     """
-    compute franck theta with DMLE
+    compute frank theta with DMLE
     :param u_values:
     :return:
-    >>> dmle_copula_franck(np.array([
+    >>> dmle_copula_frank(np.array([
     ...    [0.72122885, 0.64249391, 0.6771109 ],
     ...    [0.48840676, 0.36490127, 0.27721709],
     ...    [0.63469281, 0.4517949 , 0.62365817],
@@ -300,32 +301,31 @@ def pdf_clayton(u_values, theta, is_log=False):
     array([0.88458189, 1.1443921 , 0.66491654, 0.66623254, 0.67525564,
            1.0480272 , 0.89668514, 1.00407535, 1.007351  , 1.03652896])
     """
-    dcopula = np.empty_like(u_values[:, 0])
-    sum_seq = 0.0
     d = float(u_values.shape[1])
-    t = np.sum(ipsi_clayton(x=u_values, theta=theta), axis=1)
     lu = np.sum(np.log(u_values), axis=1)
-    const_a = np.log1p(theta)
-    const_b = 1.0 + theta
-    const_c = np.log1p(-t)
-    if theta > 0.0:
-        sum_seq = np.array([i for i in np.arange(1.0, d)])
-        sum_seq = np.sum(np.log1p(theta * sum_seq))
-        const_c = np.log1p(t)
-    const_d = d + 1.0 / theta
-    for i in range(u_values.shape[0]):
-        if theta < 0.0:
-            if t[i] < 1.0:
-                dcopula[i] = const_a - const_b * lu[i] - const_d * const_c[i]
+    t_var = np.sum(ipsi_clayton(u_values, theta), axis=1)
+    res = np.zeros(shape=u_values.shape[0])
+    if theta == 0.0:
+        return res
+    if theta < 0.0:
+        for i in range(u_values.shape[0]):
+            if t_var[i] < 1.0:
+                res[i] = np.log1p(theta)
+                res[i] -= (1.0 + theta) * lu[i]
+                res[i] -= (d + 1.0 / theta) * np.log1p(-t_var[i])
             else:
-                dcopula[i] = -np.Inf
-        elif theta > 0.0:
-            dcopula[i] = sum_seq - const_b * lu[i] - const_d * const_c[i]
-        else:
-            dcopula[i] = 0.0
-        if not is_log:
-            dcopula[i] = np.exp(dcopula[i])
-    return dcopula
+                res[i] = -np.Inf
+    else:
+        res = np.sum(
+            np.log1p(
+                theta * np.linspace(start=1.0, stop=d - 1.0, num=d-1)
+            ),
+            axis=0
+        ) - (1.0 + theta) * lu - (d + 1.0 / theta) * np.log1p(t_var)
+    if is_log:
+        return res
+    else:
+        return np.exp(res)
 
 
 def diag_pdf_clayton(u_values, theta, is_log=False):
@@ -393,7 +393,7 @@ def dmle_copula_gumbel(u_values):
     ...    [0.51942063, 0.73040326, 0.25935125],
     ...    [0.46365886, 0.2459    , 0.83277053]
     ...    ]))
-    1.5136102146750419
+    1.0
     """
     theta = np.log(float(u_values.shape[0])) - lsum(
         -np.log(diag_copula(u_values))
@@ -930,6 +930,63 @@ def diag_pdf_gumbel(u_values, theta, is_log=False):
     return da * y ** (da - 1.0)
 
 
+def log_polyg(lx_var, alpha_var, d_var):
+    """
+    compute gumbel polylog
+    :param lx_var:
+    :param alpha_var:
+    :param d_var:
+    :return:
+    >>> log_polyg(
+    ...    lsum(ipsi_gumbel(np.array(
+    ...        [0.42873569, 0.18285458, 0.9514195]
+    ...    ),
+    ...    1.2,
+    ...    is_log=True
+    ...    )) * 1/1.2, 1/1.2, 3
+    ... )
+    2.240287381463604
+    """
+
+    def s_j(j_s, alpha_s, d_s):
+        """
+        sign function
+        :param j_s:
+        :param alpha_s:
+        :param d_s:
+        :return:
+        """
+        assert 0.0 < alpha_s
+        assert alpha_s <= 1.0
+        assert d_s >= 0.0 and 0.0 <= float(j_s)
+        if alpha_s == 1.0:
+            if int(j_s) == int(d_s):
+                return 1.0
+            else:
+                return (-1.0)**(d_s - float(j_s))
+        else:
+            x = alpha_s * float(j_s)
+            if x != np.floor(x):
+                return (-1.0)**(float(j_s) - np.ceil(x))
+            else:
+                return 0.0
+    k = np.linspace(start=1.0, stop=d_var, num=d_var)
+    x = np.exp(lx_var)
+    lppois = poisson.logcdf(d_var - k, x)
+    llx = np.dot(k, np.transpose(lx_var))
+    labspoch = np.zeros(shape=int(d_var))
+    for i in range(int(d_var)):
+        labspoch[i] = np.sum(
+            np.log(
+                abs(alpha_var * float(i + 1) - (k - 1.0))
+            ),
+            axis=0
+        )
+    lfac = np.log(factorial(k))
+    lxabs = llx + lppois + labspoch - lfac + np.repeat(x, int(d_var))
+    return lsum(lxabs)
+
+
 def pdf_gumbel(u_values, theta, is_log=False):
     """
     compute frank copula pdf
@@ -951,7 +1008,7 @@ def pdf_gumbel(u_values, theta, is_log=False):
     ...    ]),
     ...    1.2)
     array([0.62097606, 1.39603813, 0.58225969, 0.85072331, 0.88616848,
-           1.10022557, 0.66461897, 0.33769735, 1.15561848, 1.01957628])
+           1.10022557, 0.66461897, 0.82092565, 1.15561848, 1.01957628])
     >>> pdf_gumbel(np.array([
     ...    [0.42873569, 0.18285458, 0.9514195],
     ...    [0.25148149, 0.05617784, 0.3378213],
@@ -967,66 +1024,41 @@ def pdf_gumbel(u_values, theta, is_log=False):
     ...    1.2,
     ...    is_log=True)
     array([-0.47646275,  0.33363832, -0.54083873, -0.16166834, -0.12084819,
-            0.09551522, -0.40854139, -1.08560521,  0.14463568,  0.01938713])
+            0.09551522, -0.40854139, -0.19732273,  0.14463568,  0.01938713])
+    >>> pdf_gumbel(np.array([
+    ...    [0.42873569, 0.18285458],
+    ...    [0.25148149, 0.05617784],
+    ...    [0.79410993, 0.76175687],
+    ...    [0.02694249, 0.45788802],
+    ...    [0.39522060, 0.02189511],
+    ...    [0.66878367, 0.38075101],
+    ...    [0.90365653, 0.19654621],
+    ...    [0.28607729, 0.82713755],
+    ...    [0.22437343, 0.16907646],
+    ...    [0.66752741, 0.69487362]
+    ...    ]),
+    ...    3.2,
+    ...    is_log=True)
+    array([ 0.65703052,  0.97649388,  1.52872326, -1.21935198, -0.8326633 ,
+            0.10637163, -4.44811205, -2.32380971,  1.71667778,  1.39676317])
     """
-
-    def s_j(j, alpha_var, d_var):
-        """
-        sign function
-        :param j:
-        :param alpha_var:
-        :param d_var:
-        :return:
-        """
-        assert 0.0 < alpha_var
-        assert alpha_var <= 1.0
-        assert d_var >= 0.0 and 0.0 <= float(j)
-        if alpha_var == 1.0:
-            if int(j) == int(d_var):
-                return 1.0
-            else:
-                return (-1.0)**(d_var - float(j))
-        else:
-            x = alpha_var * float(j)
-            if x != np.floor(x):
-                return (-1.0)**(float(j)-np.ceil(x))
-            else:
-                return 0.0
-
-    def log_polyg(lx_var, alpha_var, d_var):
-        """
-        compute gumbel polylog
-        :param lx_var:
-        :param alpha_var:
-        :param d_var:
-        :return:
-        """
-        res = np.zeros(shape=int(d_var))
-        x = np.exp(lx_var)
-        for j in range(1, int(d_var) + 1):
-            res[j-1] += np.log(abs(binom(alpha_var * float(j), d_var)))
-            res[j-1] += np.log(factorial(d_var))
-            res[j-1] += float(j) * lx_var
-            res[j-1] += x - np.log(factorial(float(j)))
-            res[j-1] += poisson.logcdf(d_var - float(j), x)
-            res[j-1] = s_j(j, alpha_var, d_var) * np.exp(res[j - 1])
-        return lssum(res)
-
     d = float(u_values.shape[1])
-    alpha = 1.0 / theta
-    lip = ipsi_gumbel(u_values, theta)
+    mlu = -np.log(u_values)
+    lmlu = np.log(mlu)
+    lip = ipsi_gumbel(u_values, theta, is_log=True)
     lnt = np.zeros(shape=u_values.shape[0])
     for i in range(u_values.shape[0]):
         lnt[i] = lsum(lip[i, :])
-    mlu = -np.log(u_values)
-    lmlu = np.log(mlu)
+    alpha = 1.0 / theta
     lx = alpha * lnt
     ls = np.zeros(shape=u_values.shape[0])
     for i in range(u_values.shape[0]):
         ls[i] = log_polyg(lx[i], alpha, d) - d * lx[i] / alpha
     lnc = -np.exp(lx)
-    dcopula = lnc + d * np.log(theta) + np.sum((theta - 1.0) * lmlu + mlu,
-                                               axis=1) + ls
+    dcopula = lnc + d * np.log(theta) + np.sum(
+        (theta - 1.0) * lmlu + mlu,
+        axis=1
+    ) + ls
     if is_log:
         return dcopula
     return np.exp(dcopula)
