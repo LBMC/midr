@@ -77,7 +77,8 @@ def lssum(x_values, x_sign=np.NaN, is_log=True):
     :param x_values:
     :return:
     array([3.89773594, 3.89773594, 3.89773594])
-    >>> lssum(np.array([[0.42873569, 0.18285458, 0.9514195],
+    array([2.8032607 , 2.71855056, 2.87969188])
+    >>> lssum(np.transpose(np.array([[0.42873569, 0.18285458, 0.9514195],
     ...    [0.25148149, 0.05617784, 0.3378213],
     ...    [0.79410993, 0.76175687, 0.0709562],
     ...    [0.02694249, 0.45788802, 0.6299574],
@@ -86,9 +87,10 @@ def lssum(x_values, x_sign=np.NaN, is_log=True):
     ...    [0.90365653, 0.19654621, 0.6809525],
     ...    [0.28607729, 0.82713755, 0.7686878],
     ...    [0.22437343, 0.16907646, 0.5740400],
-    ...    [0.66752741, 0.69487362, 0.3329266]]),
-    ... x_sign=signFF(1/1.2, np.array([1, 2, 3]), 3))
-    array([2.8032607 , 2.71855056, 2.87969188])
+    ...    [0.66752741, 0.69487362, 0.3329266]])),
+    ... x_sign=signff(1/3.2, np.array([1, 2, 3]), 3))
+    array([1.0729724 , 0.48860043, 0.13450368, 0.28073852, 0.85281759,
+           0.77384662, 1.1716088 , 0.18345907, 0.6112606 , 0.29341583])
     """
     if is_log:
         b_i_sign = x_sign
@@ -96,22 +98,24 @@ def lssum(x_values, x_sign=np.NaN, is_log=True):
     else:
         b_i_sign = np.sign(x_values)
         b_i = np.log(abs(x_values))
-    b_i_sign = b_i_sign
+    b_i_sign = b_i_sign.reshape(-1, 1)
     b_max = np.amax(b_i, axis=0)
     res = np.sum(b_i_sign * np.exp(b_i - b_max), axis=0)
     return b_max + np.log(res)
 
 
-def signFF(alpha, j, d):
+def signff(alpha, j, d):
     """
     The sign of choose(alpha*j,d)*(-1)^(d-j)
     :param alpha:
     :param j:
     :param d:
     :return:
-    >>> signFF(1/1.2, np.array([1,2,3]), 3)
+    >>> signff(1/1.2, np.array([1,2,3]), 3)
     array([1., 1., 1.])
-    >>> signFF(1/3.2, np.array([1,2,3]), 3)
+    >>> signff(1/3.2, np.array([1,2,3]), 3)
+    array([ 1., -1.,  1.])
+    >>> signff(1/30.2, np.array([1,2,3]), 3)
     array([ 1., -1.,  1.])
     """
     assert 0.0 < alpha
@@ -1022,7 +1026,7 @@ def log_polyg(lx_var, alpha_var, d_var):
     :param alpha_var:
     :param d_var:
     :return:
-    >>> lsum(ipsi_gumbel(np.array([
+    >>> lsum(np.transpose(ipsi_gumbel(np.array([
     ...    [0.42873569, 0.18285458, 0.9514195],
     ...    [0.25148149, 0.05617784, 0.3378213],
     ...    [0.79410993, 0.76175687, 0.0709562],
@@ -1036,10 +1040,11 @@ def log_polyg(lx_var, alpha_var, d_var):
     ...    ]),
     ...    1.2,
     ...    is_log=True
-    ...    )) * 1/1.2
-    array([2.05079784, 2.33996466, 1.71900531])
+    ...    )))
+    array([1.00636964, 1.81365937, 1.27973155, 1.76000074, 1.84085744,
+           0.64075371, 0.77684883, 0.49862315, 1.41268535, 0.56279559])
     >>> log_polyg(
-    ...    lsum(ipsi_gumbel(np.array([
+    ...    lsum(np.transpose(ipsi_gumbel(np.array([
     ...    [0.42873569, 0.18285458, 0.9514195],
     ...    [0.25148149, 0.05617784, 0.3378213],
     ...    [0.79410993, 0.76175687, 0.0709562],
@@ -1053,28 +1058,12 @@ def log_polyg(lx_var, alpha_var, d_var):
     ...    ]),
     ...    1.2,
     ...    is_log=True
-    ...    )) * 1/1.2, 1/1.2, 3
+    ...    ))) * 1/1.2, 1/1.2, 3
     ... )
-    array([5.68406653, 6.5315726 , 4.7202882 ])
-    >>> lsum(ipsi_gumbel(np.array([
-    ...    [0.42873569, 0.18285458, 0.9514195],
-    ...    [0.25148149, 0.05617784, 0.3378213],
-    ...    [0.79410993, 0.76175687, 0.0709562],
-    ...    [0.02694249, 0.45788802, 0.6299574],
-    ...    [0.39522060, 0.02189511, 0.6332237],
-    ...    [0.66878367, 0.38075101, 0.5185625],
-    ...    [0.90365653, 0.19654621, 0.6809525],
-    ...    [0.28607729, 0.82713755, 0.7686878],
-    ...    [0.22437343, 0.16907646, 0.5740400],
-    ...    [0.66752741, 0.69487362, 0.3329266]
-    ...    ]),
-    ...    1.2,
-    ...    is_log=True
-    ...    ), axis=1) * 1/1.2
-    array([0.83864137, 1.51138281, 1.06644296, 1.46666728, 1.53404787,
-           0.53396142, 0.64737402, 0.41551929, 1.17723779, 0.46899633])
+    array([2.24028738, 4.12345214, 2.86724735, 3.99567951, 4.1883271 ,
+           1.42510898, 1.72500906, 1.11696417, 3.17657604, 1.25542124])
     >>> log_polyg(
-    ...    lsum(ipsi_gumbel(np.array([
+    ...    lsum(np.transpose(ipsi_gumbel(np.array([
     ...    [0.42873569, 0.18285458, 0.9514195],
     ...    [0.25148149, 0.05617784, 0.3378213],
     ...    [0.79410993, 0.76175687, 0.0709562],
@@ -1086,12 +1075,13 @@ def log_polyg(lx_var, alpha_var, d_var):
     ...    [0.22437343, 0.16907646, 0.5740400],
     ...    [0.66752741, 0.69487362, 0.3329266]
     ...    ]),
-    ...    1.2,
+    ...    3.2,
     ...    is_log=True
-    ...    ), axis=1) * 1/1.2, 1/1.2, 3
+    ...    ))) * 1/3.2, 1/3.2, 3
     ... )
+    array([ 0.35110025,  1.31419104,  1.07707314,  1.68854151,  1.80435943,
+           -0.43406987,  0.23166651, -0.18316099,  0.62329368, -0.35013782])
     """
-
     k = np.linspace(start=1.0, stop=d_var, num=d_var)
     x = np.exp(lx_var)
     lppois = np.zeros(shape=[int(d_var), int(lx_var.shape[0])])
@@ -1108,13 +1098,13 @@ def log_polyg(lx_var, alpha_var, d_var):
         )
     lfac = np.log(factorial(k))
     lxabs = llx + lppois + np.tile(
-        labspoch - lfac, int(d_var)
-    ).reshape((int(d_var), int(d_var)), order='F') + np.repeat(
+        labspoch - lfac, int(lx_var.shape[0])
+    ).reshape((int(d_var), int(lx_var.shape[0])), order='F') + np.repeat(
         x, int(d_var)
     ).reshape((int(d_var), int(lx_var.shape[0])), order='F')
     return lssum(
         x_values=lxabs,
-        x_sign=signFF(alpha_var, k, d_var),
+        x_sign=signff(alpha_var, k, d_var),
         is_log=True
     )
 
@@ -1169,20 +1159,19 @@ def pdf_gumbel(u_values, theta, is_log=False):
     ...    [0.22437343, 0.16907646],
     ...    [0.66752741, 0.69487362]
     ...    ]),
-    ...    1.2,
+    ...    3.2,
     ...    is_log=True)
-    array([ 0.65703052,  0.97649388,  1.52872326, -1.21935198, -0.8326633 ,
-            0.10637163, -4.44811205, -2.32380971,  1.71667778,  1.39676317])
+    array([-0.06797204,  0.11058147,  1.26625419, -2.13290342, -1.75890767,
+           -0.4483621 , -5.15135971, -2.95009109,  0.94790989,  1.04000301])
     """
     d = float(u_values.shape[1])
     mlu = -np.log(u_values)
     lmlu = np.log(mlu)
     lip = ipsi_gumbel(u_values, theta, is_log=True)
-    lnt = lsum(lip, axis=1)
+    lnt = lsum(np.transpose(lip))
     alpha = 1.0 / theta
     lx = alpha * lnt
     ls = log_polyg(lx, alpha, d) - d * lx / alpha
-    return ls
     lnc = -np.exp(lx)
     dcopula = lnc + d * np.log(theta) + np.sum(
         (theta - 1.0) * lmlu + mlu,
