@@ -118,9 +118,9 @@ def signff(alpha, j, d):
     >>> signff(1/30.2, np.array([1,2,3]), 3)
     array([ 1., -1.,  1.])
     """
-    assert 0.0 < alpha
-    assert alpha <= 1.0
-    assert d >= 0.0
+    assert 0.0 < alpha, "alpha value:" + str(alpha)
+    assert alpha <= 1.0, "alpha value:" + str(alpha)
+    assert d >= 0.0, "d value:" + str(d)
     res = np.zeros(shape=j.shape[0])
     if alpha == 1.0:
         for i in range(j.shape[0]):
@@ -1170,6 +1170,8 @@ def pdf_gumbel(u_values, theta, is_log=False):
     lip = ipsi_gumbel(u_values, theta, is_log=True)
     lnt = lsum(np.transpose(lip))
     alpha = 1.0 / theta
+    assert 0.0 < alpha, "alpha value:" + str(alpha) + " theta: " + str(theta)
+    assert alpha <= 1.0, "alpha value:" + str(alpha) + " theta: " + str(theta)
     lx = alpha * lnt
     ls = log_polyg(lx, alpha, d) - d * lx / alpha
     lnc = -np.exp(lx)
