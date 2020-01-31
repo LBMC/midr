@@ -482,7 +482,7 @@ def dmle_copula_gumbel(u_values):
     ...    [0.51942063, 0.73040326, 0.25935125],
     ...    [0.46365886, 0.2459    , 0.83277053]
     ...    ]))
-    1.0
+    1.00000000000001
     """
     theta = np.log(float(u_values.shape[0])) - lsum(
         -np.log(diag_copula(u_values))
