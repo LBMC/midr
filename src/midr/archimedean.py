@@ -488,7 +488,7 @@ def dmle_copula_gumbel(u_values):
         -np.log(diag_copula(u_values))
     )
     theta = np.log(float(u_values.shape[1])) / theta
-    return max([theta, 1.0])
+    return max([theta, 1.0 + 1e-14])
 
 
 def ipsi_frank(u_values, theta, is_log=False):
