@@ -589,10 +589,10 @@ def samic_e_k(u_values, copula, params_list):
         u_values,
         params_list[copula]['theta'],
     )
-    k_state = dcopula / (
+    k_state = params_list['pi'] / (
             params_list['pi'] + dcopula
         )
-    return k_state
+    return np.minimum(k_state, 1.0 - 1e-8)
 
 
 def samic_mix(u_values, copula, theta, k_states):
@@ -609,8 +609,8 @@ def samic_mix(u_values, copula, theta, k_states):
         'frank': archimedean.pdf_frank,
         'gumbel': archimedean.pdf_gumbel
     }
-    return np.sum(
-        np.log(k_states) + copula_density[copula](
+    return -np.sum(
+        np.log(1.0 - k_states) + copula_density[copula](
             u_values,
             theta,
             is_log=True
@@ -619,82 +619,105 @@ def samic_mix(u_values, copula, theta, k_states):
     )
 
 
-def samic_min_theta(u_values, copula, k_state):
+def samic_min_pi(k_state):
+    """
+    compute maximization of pi
+    """
+    return float(sum(1-k_state)) / float(len(k_state))
+
+
+def consts(x, theta_min=np.nan, theta_max=np.nan, eps=1e-14):
+    """
+    compute contraint for theta ineq
+    :param theta_min:
+    :param theta_max:
+    :param eps:
+    :return:
+    """
+    if not np.isnan(theta_min):
+        return x - (theta_min + eps)
+    if not np.isnan(theta_max):
+        return (theta_max - eps) - x
+
+def build_constraint(copula, old_theta=np.nan, eps=10.0):
+    """
+    write consts for a given copula
+    :param copula:
+    :param old_theta:
+    :param eps
+    :return:
+    """
+    thetas = {
+        'clayton': {
+            'theta_min': max([0.0, old_theta - eps]),
+            'theta_max': min([1000.0, old_theta + eps])
+        },
+        'frank': {
+            'theta_min': max([0.0, old_theta - eps]),
+            'theta_max': min([745.0, old_theta + eps])
+        },
+        'gumbel': {
+            'theta_min': max([1.0, old_theta - eps]),
+            'theta_max': min([100.0, old_theta + eps])
+        }
+    }
+
+    def consts_min(x):
+        return consts(
+            x=x,
+            theta_min=thetas[copula]['theta_min']
+        )
+
+    def consts_max(x):
+        return consts(
+            x=x,
+            theta_max=thetas[copula]['theta_max']
+        )
+    return [
+        {'type': 'ineq', 'fun': consts_min},
+        {'type': 'ineq', 'fun': consts_max}
+    ]
+
+
+def samic_min_theta(u_values, copula, k_state, params_list):
     """
     find theta that minimize the likelihood of the copula density
     :param u_values:
     :param copula:
     :param k_states:
+    :param params_list:
     :return:
     """
-    dmle_copula = {
-        'clayton': archimedean.dmle_copula_clayton,
-        'frank': archimedean.dmle_copula_frank,
-        'gumbel': archimedean.dmle_copula_gumbel
-    }
-    theta_dmle = dmle_copula[copula](u_values)
-    constraints = {
-        'clayton': [
-            {'type': 'ineq', 'fun': lambda x: x - max([
-                1e-14,
-                theta_dmle - 0.5
-            ])},
-            {'type': 'ineq', 'fun': lambda x: min([
-                1000,
-                theta_dmle + 0.5
-            ]) - x}
-        ],
-        'frank': [
-            {'type': 'ineq', 'fun': lambda x: x - max([
-                1e-14,
-                theta_dmle - 0.5
-            ])},
-            {'type': 'ineq', 'fun': lambda x: min([
-                745,
-                theta_dmle + 0.5
-            ]) - x}
-        ],
-        'gumbel': [
-            {'type': 'ineq', 'fun': lambda x: x - max([
-                1.0,
-                # theta_dmle - 0.5
-            ])},
-            {'type': 'ineq', 'fun': lambda x: min([
-                100,
-                # max([1.1, theta_dmle + 0.5])
-            ]) - x}
-        ]
-    }
-    print("theta dmle [" + copula + "] = " + str(theta_dmle))
+    old_theta = params_list[copula]['theta']
+    constraints = build_constraint(copula, old_theta=old_theta)
+    print("theta dmle [" + copula + "] = " + str(old_theta))
 
     x_axis = np.linspace(
         start=max([
             1e-14,
-            theta_dmle - 0.5
+            # old_theta - 0.5
         ]),
         stop=min([
-            1000,
-            theta_dmle + 0.5
+            10,
+            # old_theta + 0.5
         ]),
-        num=100
+        num=1000
     )
     if copula == "gumbel":
         x_axis = np.linspace(
             start=max([
-                1.0,
-                # theta_dmle - 0.5
+                1.0+1e-14,
+                # old_theta - 0.5
             ]),
             stop=min([
-                100,
-                # max([1.1, theta_dmle + 0.5])
+                10,
+                # max([1.1, old_theta + 0.5])
             ]),
-            num=101
+            num=1000
         )
     y_axis = np.empty_like(x_axis)
     for i in range(x_axis.shape[0]):
         y_axis[i] = samic_mix(u_values, copula, x_axis[i], k_state)
-    # print(x_axis)
-    # print(y_axis)
     plt.subplot()
     plt.scatter(x_axis,
                 y_axis)
@@ -702,14 +725,14 @@ def samic_min_theta(u_values, copula, k_state):
     plt.clf()
     res = minimize(
         fun=lambda x: samic_mix(u_values, copula, x, k_state),
-        x0=theta_dmle,
-        constraints=constraints[copula],
+        x0=old_theta,
+        constraints=constraints,
         options={'maxiter': 1000}
     )
-    if res.x == np.NaN:
-        return res.x[0]
+    if np.isnan(res.x):
+        return old_theta
     else:
-        return theta_dmle
+        return res.x[0]
 
 
 def samic(x_score, threshold=1e-4):
@@ -746,7 +769,7 @@ def samic(x_score, threshold=1e-4):
     for copula in copula_list:
         params_list[copula] = {
             'theta': dmle_copula[copula](u_values),
-            'theta_old': np.Inf
+            'theta_old': np.nan
         }
     while samic_delta(copula, params_list, threshold):
         for copula in copula_list:
@@ -757,13 +780,14 @@ def samic(x_score, threshold=1e-4):
                 copula=copula,
                 params_list=params_list,
             )
-            params_list['pi'] = m_step_pi(
-                k_state=1.0 - k_state
+            params_list['pi'] = samic_min_pi(
+                k_state=k_state
             )
             params_list[copula]['theta'] = samic_min_theta(
                 u_values=u_values,
                 copula=copula,
                 k_state=k_state,
+                params_list=params_list
             )
             print(params_list)
     return params_list
