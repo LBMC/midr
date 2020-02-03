@@ -567,7 +567,7 @@ def samic_delta(copula, params_list, threshold):
     :return: bool
     """
     return max([
-        abs(params_list['pi'] - params_list['pi_old']),
+        abs(params_list[copula]['pi'] - params_list[copula]['pi_old']),
         abs(params_list[copula]['theta'] - params_list[copula]['theta_old'])
     ]) >= threshold
 
@@ -585,12 +585,12 @@ def samic_e_k(u_values, copula, params_list):
         'frank': archimedean.pdf_frank,
         'gumbel': archimedean.pdf_gumbel
     }
-    dcopula = (1.0 - params_list['pi']) * copula_density[copula](
+    dcopula = (1.0 - params_list[copula]['pi']) * copula_density[copula](
         u_values,
         params_list[copula]['theta'],
     )
-    k_state = params_list['pi'] / (
-            params_list['pi'] + dcopula
+    k_state = params_list[copula]['pi'] / (
+            params_list[copula]['pi'] + dcopula
         )
     return np.minimum(k_state, 1.0 - 1e-8)
 
@@ -626,7 +626,7 @@ def samic_min_pi(k_state):
     return float(sum(1-k_state)) / float(len(k_state))
 
 
-def consts(x, theta_min=np.nan, theta_max=np.nan, eps=1e-14):
+def consts(x, theta_min=np.nan, theta_max=np.nan, eps=1e-8):
     """
     compute contraint for theta ineq
     :param theta_min:
@@ -639,7 +639,7 @@ def consts(x, theta_min=np.nan, theta_max=np.nan, eps=1e-14):
     if not np.isnan(theta_max):
         return (theta_max - eps) - x
 
-def build_constraint(copula, old_theta=np.nan, eps=10.0):
+def build_constraint(copula, old_theta=np.nan, eps=1.0):
     """
     write consts for a given copula
     :param copula:
@@ -690,39 +690,6 @@ def samic_min_theta(u_values, copula, k_state, params_list):
     """
     old_theta = params_list[copula]['theta']
     constraints = build_constraint(copula, old_theta=old_theta)
-    print("theta dmle [" + copula + "] = " + str(old_theta))
-
-    x_axis = np.linspace(
-        start=max([
-            1e-14,
-            # old_theta - 0.5
-        ]),
-        stop=min([
-            10,
-            # old_theta + 0.5
-        ]),
-        num=1000
-    )
-    if copula == "gumbel":
-        x_axis = np.linspace(
-            start=max([
-                1.0+1e-14,
-                # old_theta - 0.5
-            ]),
-            stop=min([
-                10,
-                # max([1.1, old_theta + 0.5])
-            ]),
-            num=1000
-        )
-    y_axis = np.empty_like(x_axis)
-    for i in range(x_axis.shape[0]):
-        y_axis[i] = samic_mix(u_values, copula, x_axis[i], k_state)
-    plt.subplot()
-    plt.scatter(x_axis,
-                y_axis)
-    plt.savefig(copula + ".pdf")
-    plt.clf()
     res = minimize(
         fun=lambda x: samic_mix(u_values, copula, x, k_state),
         x0=old_theta,
@@ -762,25 +729,24 @@ def samic(x_score, threshold=1e-4):
         'frank': archimedean.dmle_copula_frank,
         'gumbel': archimedean.dmle_copula_gumbel
     }
-    params_list = {
-        'pi': 0.5,
-        'pi_old': np.Inf
-    }
+    params_list = dict()
     for copula in copula_list:
         params_list[copula] = {
             'theta': dmle_copula[copula](u_values),
-            'theta_old': np.nan
+            'theta_old': np.nan,
+            'pi': 0.5,
+            'pi_old': np.Inf
         }
     while samic_delta(copula, params_list, threshold):
         for copula in copula_list:
-            params_list['pi_old'] = params_list['pi']
+            params_list[copula]['pi_old'] = params_list[copula]['pi']
             params_list[copula]['theta_old'] = params_list[copula]['theta']
             k_state = samic_e_k(
                 u_values=u_values,
                 copula=copula,
                 params_list=params_list,
             )
-            params_list['pi'] = samic_min_pi(
+            params_list[copula]['pi'] = samic_min_pi(
                 k_state=k_state
             )
             params_list[copula]['theta'] = samic_min_theta(
@@ -882,7 +848,7 @@ if __name__ == "__main__":
                   'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
                   'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
                   'rho': 0.75}
-    DATA = sim_m_samples(n_value=1000,
+    DATA = sim_m_samples(n_value=100000,
                          m_sample=4,
                          theta_0=THETA_TEST_0,
                          theta_1=THETA_TEST_1)
