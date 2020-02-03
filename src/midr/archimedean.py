@@ -71,7 +71,7 @@ def lsum(x_values, is_log=True, axis=0):
     )
 
 
-def lssum(x_values, x_sign=np.NaN, is_log=True):
+def lssum(x_values, x_sign=np.nan, is_log=True):
     """
     compute log sum_i x_i with sign
     :param x_values:
@@ -131,7 +131,7 @@ def signff(alpha, j, d):
     else:
         for i in range(j.shape[0]):
             if j[i] > d:
-                res[i] = np.NaN
+                res[i] = np.nan
             else:
                 x = alpha * j[i]
                 if x != np.floor(x):
@@ -217,10 +217,7 @@ def max_diag_pdf(u_values, diag_pdf, init, constraint):
         x0=np.array(init),
         constraints=constraint
     )
-    if res.success:
-        return res.x[0]
-    else:
-        return np.NaN
+    return res.x[0]
 
 
 def dmle_copula_clayton(u_values):
@@ -506,13 +503,28 @@ def dmle_copula_gumbel(u_values):
     ...    [0.51942063, 0.73040326, 0.25935125],
     ...    [0.46365886, 0.2459    , 0.83277053]
     ...    ]))
-    1.00000000000001
+    1.5138454093002933
+    >>> dmle_copula_gumbel(np.array([
+    ...   [0.42873569, 0.18285458, 0.9514195],
+    ...   [0.25148149, 0.05617784, 0.3378213],
+    ...   [0.79410993, 0.76175687, 0.0709562],
+    ...   [0.02694249, 0.45788802, 0.6299574],
+    ...   [0.39522060, 0.02189511, 0.6332237],
+    ...   [0.66878367, 0.38075101, 0.5185625],
+    ...   [0.90365653, 0.19654621, 0.6809525],
+    ...   [0.28607729, 0.82713755, 0.7686878],
+    ...   [0.22437343, 0.16907646, 0.5740400],
+    ...   [0.66752741, 0.69487362, 0.3329266]
+    ...    ]))
+    1.1658220393893608
     """
-    theta = np.log(float(u_values.shape[0])) - lsum(
-        -np.log(diag_copula(u_values))
+    return max_diag_pdf(
+        u_values=u_values,
+        diag_pdf=diag_pdf_gumbel,
+        init=1.5,
+        constraint=[{'type': 'ineq', 'fun': lambda x: x - (1 + 1e-14)},
+                    {'type': 'ineq', 'fun': lambda x: 100 - x}]
     )
-    theta = np.log(float(u_values.shape[1])) / theta
-    return max([theta, 1.0 + 1e-14])
 
 
 def ipsi_frank(u_values, theta, is_log=False):
