@@ -149,7 +149,7 @@ def log1mexp(x):
         if x[i] <= np.log(2.0):
             res[i] = np.log(-np.expm1(-x[i]))
         else:
-            res[i] np.log1p(-np.exp(-x[i]))
+            res[i] = np.log1p(-np.exp(-x[i]))
     return res
 
 
