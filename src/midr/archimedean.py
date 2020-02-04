@@ -138,25 +138,19 @@ def signff(alpha, j, d):
                     res[i] = (-1.0) ** (j[i] - np.ceil(x))
     return res
 
-
 def log1mexp(x):
     """
     compute log(1-exp(-a)
     :param x:
     :return:
     """
-    def mapping_function(x_val):
-        """
-        helper function to vectorize
-        :param x_val:
-        :return:
-        """
-        if x_val <= np.log(2.0):
-            return np.log(-np.expm1(-x_val))
+    res = np.empty_like(x)
+    for i in range(x.shape[0]):
+        if x[i] <= np.log(2.0):
+            res[i] = np.log(-np.expm1(-x[i]))
         else:
-            return np.log1p(-np.exp(-x_val))
-    mapping_function = np.vectorize(mapping_function)
-    return mapping_function(x)
+            res[i] np.log1p(-np.exp(-x[i]))
+    return res
 
 
 def log1pexp(x):
