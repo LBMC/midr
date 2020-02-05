@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-"""Compute the Irreproducible Discovery Rate (IDR) from NarrowPeaks files
+"""Compute the Irreducible Discovery Rate (IDR) from NarrowPeaks files
 
 Implementation of the IDR methods for two or more replicates.
 
@@ -16,7 +16,6 @@ NarrowPeaks files.
 import numpy as np
 from scipy.optimize import minimize
 from scipy.special import factorial
-from scipy.special import binom
 from scipy.special import logsumexp
 from scipy.stats import poisson
 from mpmath import polylog
@@ -25,7 +24,9 @@ from mpmath import polylog
 def lsum(x_values, is_log=True, axis=0):
     """
     compute log sum_i x_i
-    :param x:
+    :param x_values:
+    :param is_log:
+    :param axis:
     :return:
     >>> lsum(np.array([1, 2, 3, 4]))
     4.440189698561196
@@ -75,6 +76,8 @@ def lssum(x_values, x_sign=np.nan, is_log=True):
     """
     compute log sum_i x_i with sign
     :param x_values:
+    :param x_sign:
+    :param is_log:
     :return:
     array([3.89773594, 3.89773594, 3.89773594])
     array([2.8032607 , 2.71855056, 2.87969188])
@@ -137,6 +140,7 @@ def signff(alpha, j, d):
                 if x != np.floor(x):
                     res[i] = (-1.0) ** (j[i] - np.ceil(x))
     return res
+
 
 def log1mexp(x):
     """
@@ -201,6 +205,7 @@ def max_diag_pdf(u_values, diag_pdf, init, constraint):
     :param constraint:
     :return:
     """
+
     def log_ddelta(theta, u_val):
         """
         helper function to compute the sum of the log pdf diag
@@ -267,7 +272,6 @@ def dmle_copula_frank(u_values):
     ... )
     3.073701656631533
     """
-    return 3.073701656631533
     return max_diag_pdf(
         u_values=u_values,
         diag_pdf=diag_pdf_frank,
@@ -557,6 +561,7 @@ def ipsi_frank(u_values, theta, is_log=False):
            [1.41846307, 1.69593035, 0.51357717],
            [0.37185113, 0.33437415, 1.03460728]])
     """
+
     def mapping_function(x):
         """
         helper function for vectorize
@@ -572,6 +577,7 @@ def ipsi_frank(u_values, theta, is_log=False):
             else:
                 return -np.log1p((np.exp(-x * theta) - np.exp(-theta)) /
                                  np.expm1(-theta))
+
     mapping_function = np.vectorize(mapping_function)
     if is_log:
         return np.log(mapping_function(u_values))
@@ -780,6 +786,7 @@ def diag_pdf_frank(u_values, theta, is_log=False):
     mapping_function = np.vectorize(mapping_function)
     return mapping_function(yt)
 
+
 def eulerian(n, m):
     """
     compute eulerian numbers
@@ -787,23 +794,23 @@ def eulerian(n, m):
     :param m:
     :return:
     """
-    dp = [[0 for x in range(m+1)]
-             for y in range(n+1)]
+    dp = np.full((n + 1, m + 1), 0)
     # For each row from 1 to n
-    for i in range(1, n+1):
+    for i in range(1, n + 1):
         # For each column from 0 to m
-        for j in range(0, m+1):
+        for j in range(0, m + 1):
             # If i is greater than j
             if i > j:
                 # If j is 0, then make that
                 # state as 1.
                 if j == 0:
-                    dp[i][j] = 1
+                    dp[i, j] = 1
                 # basic recurrence relation.
                 else:
-                    dp[i][j] = (((i - j) * dp[i - 1][j - 1]) +
-                                ((j + 1) * dp[i - 1][j]))
-    return dp[n][m]
+                    dp[i, j] = (((i - j) * dp[i - 1, j - 1]) +
+                                ((j + 1) * dp[i - 1, j]))
+    return dp[n, m]
+
 
 def eulerian_all(n):
     """
@@ -819,6 +826,7 @@ def eulerian_all(n):
     for i in range(n):
         res[i] = eulerian(n, i)
     return res
+
 
 def polyneval(coef, x):
     """
@@ -840,20 +848,19 @@ def polylog(z, s, is_log_z=False):
 
     :param z:
     :param s:
+    :param is_log_z:
     :return:
     >>> polylog(np.array([0.01556112, 0.00108968, 0.00889932]), -2)
     array([-4.1004881 , -6.81751129, -4.68610299])
     """
+    n = -int(s)
+    eun = eulerian_all(n)
     if is_log_z:
         w = z
         z = np.exp(w)
-    n = -int(s)
-    Eun = eulerian_all(n)
-    p = polyneval(Eun, z)
-    if is_log_z:
-        return np.log(p) + w - (n + 1.0) * log1mexp(-w)
+        return np.log(polyneval(eun, z)) + w - (n + 1.0) * log1mexp(-w)
     else:
-        return np.log(p) + np.log(z) - (n + 1.0) * np.log1p(-z)
+        return np.log(polyneval(eun, z)) + np.log(z) - (n + 1.0) * np.log1p(-z)
 
 
 def pdf_frank(u_values, theta, is_log=False):
@@ -903,7 +910,7 @@ def pdf_frank(u_values, theta, is_log=False):
         lp = log1mexp(theta)
         lpu = log1mexp(theta * u_values)
         lu = np.sum(lpu, axis=1)
-        liarg = -np.expm1(-theta) * np.exp(np.sum(lpu-lp, axis=1))
+        liarg = -np.expm1(-theta) * np.exp(np.sum(lpu - lp, axis=1))
         li = polylog(
             liarg,
             -(d - 1.0)
