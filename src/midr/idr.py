@@ -726,7 +726,7 @@ def samic(x_score, threshold=1e-4):
     copula_list = ["clayton", "frank", "gumbel"]
     dmle_copula = {
         'clayton': archimedean.dmle_copula_clayton,
-        'frank': archimedean.dmle_copula_frank,
+        'frank': lambda x: 3.0, # since the dmle for frank is slow...
         'gumbel': archimedean.dmle_copula_gumbel
     }
     params_list = dict()
