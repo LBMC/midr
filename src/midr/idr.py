@@ -28,7 +28,6 @@ import midr.log as log
 
 import archimedean
 
-import matplotlib.pyplot as plt
 
 def cov_matrix(m_sample, theta):
     """
@@ -591,7 +590,7 @@ def samic_e_k(u_values, copula, params_list):
     )
     k_state = params_list[copula]['pi'] / (
             params_list[copula]['pi'] + dcopula
-        )
+    )
     return np.minimum(k_state, 1.0 - 1e-8)
 
 
@@ -623,7 +622,7 @@ def samic_min_pi(k_state):
     """
     compute maximization of pi
     """
-    return float(sum(1-k_state)) / float(len(k_state))
+    return float(sum(1 - k_state)) / float(len(k_state))
 
 
 def consts(x, theta_min=np.nan, theta_max=np.nan, eps=1e-8):
@@ -638,6 +637,7 @@ def consts(x, theta_min=np.nan, theta_max=np.nan, eps=1e-8):
         return x - (theta_min + eps)
     if not np.isnan(theta_max):
         return (theta_max - eps) - x
+
 
 def build_constraint(copula, old_theta=np.nan, eps=1.0):
     """
@@ -673,6 +673,7 @@ def build_constraint(copula, old_theta=np.nan, eps=1.0):
             x=x,
             theta_max=thetas[copula]['theta_max']
         )
+
     return [
         {'type': 'ineq', 'fun': consts_min},
         {'type': 'ineq', 'fun': consts_max}
@@ -708,7 +709,7 @@ def samic(x_score, threshold=1e-4):
     :param x_score np.array of score (measures x samples)
     :param threshold float min delta between every parameters between two
     iterations
-    :return (theta: dict, lidr: list) with thata the model parameters and
+    :return (theta: dict, lidr: list) with theta the model parameters and
     lidr the local idr values for each measures
     >>> THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
     >>> THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
@@ -726,7 +727,7 @@ def samic(x_score, threshold=1e-4):
     copula_list = ["clayton", "frank", "gumbel"]
     dmle_copula = {
         'clayton': archimedean.dmle_copula_clayton,
-        'frank': lambda x: 3.0, # since the dmle for frank is slow...
+        'frank': lambda x: 3.0,  # since the dmle for frank is slow...
         'gumbel': archimedean.dmle_copula_gumbel
     }
     params_list = dict()
@@ -755,7 +756,7 @@ def samic(x_score, threshold=1e-4):
                 k_state=k_state,
                 params_list=params_list
             )
-            print(params_list)
+            print(params_list[copula])
     return params_list
 
 
