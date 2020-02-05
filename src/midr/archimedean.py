@@ -146,12 +146,19 @@ def log1mexp(x):
     """
     if hasattr(x, "__len__"):
         res = np.empty_like(x)
-        for i in range(x.shape[0]):
-            for j in range(x.shape[1]):
-                if x[i, j] <= np.log(2.0):
-                    res[i, j] = np.log(-np.expm1(-x[i, j]))
+        if len(x.shape) == 2:
+            for i in range(x.shape[0]):
+                for j in range(x.shape[1]):
+                    if x[i, j] <= np.log(2.0):
+                        res[i, j] = np.log(-np.expm1(-x[i, j]))
+                    else:
+                        res[i, j] = np.log1p(-np.exp(-x[i, j]))
+        else:
+            for i in range(x.shape[0]):
+                if x[i] <= np.log(2.0):
+                    res[i] = np.log(-np.expm1(-x[i]))
                 else:
-                    res[i, j] = np.log1p(-np.exp(-x[i, j]))
+                    res[i] = np.log1p(-np.exp(-x[i]))
         return res
     if x <= np.log(2.0):
         return np.log(-np.expm1(-x))
