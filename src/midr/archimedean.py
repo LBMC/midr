@@ -144,13 +144,19 @@ def log1mexp(x):
     :param x:
     :return:
     """
-    res = np.empty_like(x)
-    for i in range(x.shape[0]):
-        if x[i] <= np.log(2.0):
-            res[i] = np.log(-np.expm1(-x[i]))
-        else:
-            res[i] = np.log1p(-np.exp(-x[i]))
-    return res
+    if hasattr(x, "__len__"):
+        res = np.empty_like(x)
+        for i in range(x.shape[0]):
+            for j in range(x.shape[1]):
+                if x[i, j] <= np.log(2.0):
+                    res[i, j] = np.log(-np.expm1(-x[i, j]))
+                else:
+                    res[i, j] = np.log1p(-np.exp(-x[i, j]))
+        return res
+    if x <= np.log(2.0):
+        return np.log(-np.expm1(-x))
+    else:
+        return np.log1p(-np.exp(-x))
 
 
 def log1pexp(x):
@@ -422,7 +428,7 @@ def pdf_clayton(u_values, theta, is_log=False):
     else:
         res = np.sum(
             np.log1p(
-                theta * np.linspace(start=1.0, stop=d - 1.0, num=d-1)
+                theta * np.linspace(start=1.0, stop=d - 1.0, num=int(d) - 1)
             ),
             axis=0
         ) - (1.0 + theta) * lu - (d + 1.0 / theta) * np.log1p(t_var)
@@ -1112,7 +1118,7 @@ def log_polyg(lx_var, alpha_var, d_var):
     array([ 0.35110025,  1.31419104,  1.07707314,  1.68854151,  1.80435943,
            -0.43406987,  0.23166651, -0.18316099,  0.62329368, -0.35013782])
     """
-    k = np.linspace(start=1.0, stop=d_var, num=d_var)
+    k = np.linspace(start=1.0, stop=d_var, num=int(d_var))
     x = np.exp(lx_var)
     lppois = np.zeros(shape=[int(d_var), int(lx_var.shape[0])])
     for i in range(int(d_var)):
