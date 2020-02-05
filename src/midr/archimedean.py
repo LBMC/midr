@@ -848,20 +848,19 @@ def polylog(z, s, is_log_z=False):
 
     :param z:
     :param s:
+    :param is_log_z:
     :return:
     >>> polylog(np.array([0.01556112, 0.00108968, 0.00889932]), -2)
     array([-4.1004881 , -6.81751129, -4.68610299])
     """
+    n = -int(s)
+    eun = eulerian_all(n)
     if is_log_z:
         w = z
         z = np.exp(w)
-    n = -int(s)
-    Eun = eulerian_all(n)
-    p = polyneval(Eun, z)
-    if is_log_z:
-        return np.log(p) + w - (n + 1.0) * log1mexp(-w)
+        return np.log(polyneval(eun, z)) + w - (n + 1.0) * log1mexp(-w)
     else:
-        return np.log(p) + np.log(z) - (n + 1.0) * np.log1p(-z)
+        return np.log(polyneval(eun, z)) + np.log(z) - (n + 1.0) * np.log1p(-z)
 
 
 def pdf_frank(u_values, theta, is_log=False):
