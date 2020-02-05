@@ -826,11 +826,14 @@ def polyneval(coef, x):
     :param coef:
     :param x:
     :return:
-    >>> polyneval(eulerian_all(10), [-4, -3])
+    >>> polyneval(eulerian_all(10), np.array([-4, -3]))
     array([1.12058925e+08, 9.69548800e+06])
     """
-    vpolyval = np.vectorize(np.polyval, excluded=['p'])
-    return vpolyval(p=coef, x=x)
+    return np.polyval(
+        p=np.tile(coef.reshape((-1, 1)), (1, len(x))),
+        x=x
+    )
+
 
 def polylog(z, s, is_log_z=False):
     """
