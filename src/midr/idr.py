@@ -842,17 +842,17 @@ THETA_INIT = {
 }
 
 if __name__ == "__main__":
-    THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
-    THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
-    THETA_TEST = {'pi': 0.2,
+    THETA_TEST_0 = {'pi': 0.3, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
+    THETA_TEST_1 = {'pi': 0.3, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
+    THETA_TEST = {'pi': 0.3,
                   'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
                   'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
-                  'rho': 0.75}
+                  'rho': 0.65}
     DATA = sim_m_samples(n_value=100000,
                          m_sample=4,
                          theta_0=THETA_TEST_0,
                          theta_1=THETA_TEST_1)
     samic(DATA["X"], threshold=0.01)
-    import doctest
+    # import doctest
 
-    doctest.testmod()
+    # doctest.testmod()
