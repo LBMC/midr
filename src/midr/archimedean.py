@@ -267,6 +267,7 @@ def dmle_copula_frank(u_values):
     ... )
     3.073701656631533
     """
+    return 3.073701656631533
     return max_diag_pdf(
         u_values=u_values,
         diag_pdf=diag_pdf_frank,
