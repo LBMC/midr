@@ -238,7 +238,7 @@ def z_from_u(u_values, function, grid, thread_num=mp.cpu_count()):
     :return: list of z_value
 
     >>> z_from_u(
-    ...    u_values=[0.2, 0.3, 0.5, 0.9],
+    ...    u_values=np.array([0.2, 0.3, 0.5, 0.9]),
     ...    function=lambda x, y: y - g_function(
     ...            z_values=x,
     ...            theta={'pi': 0.6, 'mu': 1.0, 'sigma': 2.0, 'rho': 0.0}
@@ -251,9 +251,9 @@ def z_from_u(u_values, function, grid, thread_num=mp.cpu_count()):
     [-0.5429962873458862, -0.1535404920578003, 0.5210787653923035, \
 2.3994555473327637]
     """
-    z_values = [0.0] * len(u_values)
+    z_values = np.zeros(u_values.shape)
     if thread_num == 0:
-        for i in range(len(u_values)):
+        for i in range(u_values.shape[0]):
             a_loc = grid.loc[grid['u_values'] <= u_values[i]]
             a_loc = a_loc.iloc[len(a_loc) - 1:len(a_loc)].index[0]
             b_loc = grid.loc[grid['u_values'] >= u_values[i]].index[0]
@@ -556,19 +556,22 @@ def em_pseudo_data(z_values,
     return theta_t1, k_state, logger
 
 
-def samic_delta(copula, params_list, threshold):
+def samic_delta(copula_list, params_list, threshold):
     """
     Return true if the difference between two iteration of samic if less than
     the threhsold
-    :param copula: str with the copula name
+    :param copula_list: str with the copula name
     :param params_list: list of model parameters
     :param threshold: flood withe the minimal difference to reach
     :return: bool
     """
-    return max([
-        abs(params_list[copula]['pi'] - params_list[copula]['pi_old']),
-        abs(params_list[copula]['theta'] - params_list[copula]['theta_old'])
-    ]) >= threshold
+    max_delta = list()
+    for copula in copula_list:
+        max_delta.append(max([
+            abs(params_list[copula]['pi'] - params_list[copula]['pi_old']),
+            abs(params_list[copula]['theta'] - params_list[copula]['theta_old'])
+        ]))
+    return max(max_delta) >= threshold
 
 
 def samic_e_k(u_values, copula, params_list):
@@ -584,12 +587,12 @@ def samic_e_k(u_values, copula, params_list):
         'frank': archimedean.pdf_frank,
         'gumbel': archimedean.pdf_gumbel
     }
-    dcopula = (1.0 - params_list[copula]['pi']) * copula_density[copula](
-        u_values,
-        params_list[copula]['theta'],
-    )
     k_state = params_list[copula]['pi'] / (
-            params_list[copula]['pi'] + dcopula
+        params_list[copula]['pi'] +
+        (1.0 - params_list[copula]['pi']) * copula_density[copula](
+            u_values,
+            params_list[copula]['theta'],
+        )
     )
     return np.minimum(k_state, 1.0 - 1e-8)
 
@@ -622,21 +625,29 @@ def samic_min_pi(k_state):
     """
     compute maximization of pi
     """
-    return float(sum(1 - k_state)) / float(len(k_state))
+    return float(sum(k_state)) / float(len(k_state))
 
 
-def consts(x, theta_min=np.nan, theta_max=np.nan, eps=1e-8):
+def consts(x, theta_min=np.nan, theta_max=np.nan, return_min=True, eps=1e-8):
     """
     compute contraint for theta ineq
     :param theta_min:
     :param theta_max:
+    :param return_min
     :param eps:
     :return:
     """
-    if not np.isnan(theta_min):
-        return x - (theta_min + eps)
-    if not np.isnan(theta_max):
-        return (theta_max - eps) - x
+    interval = [
+        x - (theta_min + eps),
+        (theta_max - eps) - x
+    ]
+    if interval[0] > interval[1]:
+        interval[1] = interval[0] + 1.0
+    if return_min:
+        return interval[0]
+    else:
+        return interval[1]
+
 
 
 def build_constraint(copula, old_theta=np.nan, eps=1.0):
@@ -665,13 +676,17 @@ def build_constraint(copula, old_theta=np.nan, eps=1.0):
     def consts_min(x):
         return consts(
             x=x,
-            theta_min=thetas[copula]['theta_min']
+            theta_min=thetas[copula]['theta_min'],
+            theta_max=thetas[copula]['theta_max'],
+            return_min=True
         )
 
     def consts_max(x):
         return consts(
             x=x,
-            theta_max=thetas[copula]['theta_max']
+            theta_min=thetas[copula]['theta_min'],
+            theta_max=thetas[copula]['theta_max'],
+            return_min=False
         )
 
     return [
@@ -692,7 +707,12 @@ def samic_min_theta(u_values, copula, k_state, params_list):
     old_theta = params_list[copula]['theta']
     constraints = build_constraint(copula, old_theta=old_theta)
     res = minimize(
-        fun=lambda x: samic_mix(u_values, copula, x, k_state),
+        fun=lambda x: samic_mix(
+            u_values=u_values,
+            copula=copula,
+            theta=x,
+            k_states=k_state
+        ),
         x0=old_theta,
         constraints=constraints,
         options={'maxiter': 1000}
@@ -711,17 +731,13 @@ def samic(x_score, threshold=1e-4):
     iterations
     :return (theta: dict, lidr: list) with theta the model parameters and
     lidr the local idr values for each measures
-    >>> THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
-    >>> THETA_TEST_1 = {'pi': 0.6, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
-    >>> THETA_TEST = {'pi': 0.2,
-    ...               'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
-    ...               'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
-    ...               'rho': 0.75}
+    >>> THETA_TEST_0 = {'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
+    >>> THETA_TEST_1 = {'pi': 0.1, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
     >>> DATA = sim_m_samples(n_value=1000,
     ...                      m_sample=4,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
-    >>> samic(DATA["X"], threshold=0.01)
+    >>> samic(DATA["X"], threshold=0.001)
     """
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
     copula_list = ["clayton", "frank", "gumbel"]
@@ -738,8 +754,8 @@ def samic(x_score, threshold=1e-4):
             'pi': 0.5,
             'pi_old': np.Inf
         }
-    while samic_delta(copula, params_list, threshold):
-        for copula in copula_list:
+    for copula in copula_list:
+        while samic_delta([copula], params_list, threshold):
             params_list[copula]['pi_old'] = params_list[copula]['pi']
             params_list[copula]['theta_old'] = params_list[copula]['theta']
             k_state = samic_e_k(
@@ -756,7 +772,7 @@ def samic(x_score, threshold=1e-4):
                 k_state=k_state,
                 params_list=params_list
             )
-            print(params_list[copula])
+            print(copula + ": " + str(params_list[copula]))
     return params_list
 
 
