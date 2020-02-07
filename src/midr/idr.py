@@ -25,7 +25,6 @@ from scipy.optimize import minimize
 import numpy as np
 import pandas as pd
 import midr.log as log
-import log
 
 import archimedean
 
@@ -889,7 +888,7 @@ def samic(x_score, threshold=1e-4):
             copula_list=copula_list,
             params_list=params_list,
         )
-    return samic_local_idr(
+    return params_list['alpha'], samic_local_idr(
         u_values=u_values,
         copula_list=copula_list,
         params_list=params_list

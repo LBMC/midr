@@ -115,7 +115,7 @@ def main():
             narrowpeak.process_bed(
                 file_names=[OPTIONS.merged] + OPTIONS.files,
                 outdir=OPTIONS.output,
-                idr_func=idr.pseudo_likelihood,
+                idr_func=idr.samic,
                 size=OPTIONS.size_merge,
                 merge_function=OPTIONS.merge_function,
                 score_cols=OPTIONS.score,
