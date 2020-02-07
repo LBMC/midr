@@ -85,25 +85,33 @@ def plot_classif(x_score, u_values, z_values, lidr, file_name):
     plt.savefig(file_name)
 
 
-def plot_samic(params_list, copula_list, file_name, iter):
+def plot_samic(params_list, copula_list, file_name, iter, loglik):
     """
     plot logs into a file
     """
-    plt.subplot()
     for copula in copula_list:
+        i = 1
         for params in ['pi', 'theta']:
+            plt.subplot(len(copula_list) * 3 + 1, 1, i)
             plt.scatter(iter,
                         params_list[copula][params],
-                        c=copula + params,
                         s=2)
             plt.ylabel(copula + params)
             plt.xlabel('steps')
+            i += 1
+        plt.subplot(len(copula_list) * 3 + 1, 1, i)
         plt.scatter(iter,
                     params_list['alpha'][params_list['order'][copula]],
-                    c=copula + params,
                     s=2)
         plt.ylabel(copula + "alpha")
         plt.xlabel('steps')
+        i += 1
+    plt.subplot(len(copula_list) * 3 + 1, 1, i)
+    plt.scatter(iter,
+                loglik,
+                s=2)
+    plt.ylabel("loglik")
+    plt.xlabel('steps')
     plt.savefig(file_name)
 
 
