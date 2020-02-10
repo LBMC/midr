@@ -25,8 +25,7 @@ from scipy.optimize import minimize
 import numpy as np
 import pandas as pd
 import midr.log as log
-
-import archimedean
+import midr.archimedean as archimedean
 
 
 def cov_matrix(m_sample, theta):
