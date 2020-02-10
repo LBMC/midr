@@ -825,12 +825,13 @@ def samic_min_theta(u_values, copula, params_list):
         return res.x[0]
 
 
-def samic(x_score, threshold=1e-4):
+def samic(x_score, threshold=1e-4, log_name=""):
     """
     implementation of the samic method for m samples
     :param x_score np.array of score (measures x samples)
     :param threshold float min delta between every parameters between two
     iterations
+    :param log_name:
     :return (theta: dict, lidr: list) with theta the model parameters and
     lidr the local idr values for each measures
     >>> THETA_TEST_0 = {'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
