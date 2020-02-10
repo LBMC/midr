@@ -836,7 +836,7 @@ def samic(x_score, threshold=1e-4, log_name=""):
     lidr the local idr values for each measures
     >>> THETA_TEST_0 = {'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
     >>> THETA_TEST_1 = {'pi': 0.1, 'mu': 4.0, 'sigma': 3.0, 'rho': 1.75}
-    >>> DATA = sim_m_samples(n_value=1000,
+    >>> DATA = sim_m_samples(n_value=10000,
     ...                      m_sample=4,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
@@ -887,6 +887,9 @@ def samic(x_score, threshold=1e-4, log_name=""):
             u_values=u_values,
             copula_list=copula_list,
             params_list=params_list,
+        )
+        params_list['alpha'] = samic_min_alpha(
+            l_state=params_list['l_state']
         )
     return params_list['alpha'], samic_local_idr(
         u_values=u_values,
