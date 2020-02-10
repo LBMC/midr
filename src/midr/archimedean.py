@@ -854,6 +854,7 @@ def polylog(z, s, is_log_z=False):
     >>> polylog(np.array([0.01556112, 0.00108968, 0.00889932]), -2)
     array([-4.1004881 , -6.81751129, -4.68610299])
     """
+    z = np.array(z, dtype=np.float128)
     n = -int(s)
     eun = eulerian_all(n)
     if is_log_z:
