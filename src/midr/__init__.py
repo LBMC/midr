@@ -6,5 +6,5 @@ idr library
 """
 
 name = "midr"
-__all__ = ["__main__", "idr", "log", "narrowpeak"]
+__all__ = ["__main__", "idr", "archimedean", "log", "narrowpeak"]
 
