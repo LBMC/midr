@@ -8,7 +8,6 @@ and compute IDR on the choosen value in the NarrowPeaks columns
 
 from os import path, access, R_OK, W_OK, makedirs
 from pathlib import PurePath
-from typing import List, Any
 from typing import Callable
 import numpy as np
 import pandas as pd
@@ -52,8 +51,8 @@ def readbed(bed_path: PurePath,
     assert access(str(bed_path), R_OK), "File {str(bed_path)} isn't readable"
 
     def move_peak(x):
-       x['peak'] += x['start']
-       return x
+        x['peak'] += x['start']
+        return x
     return pd.read_csv(
         bed_path,
         sep='\t',
@@ -486,7 +485,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     )
     merged_peaks[merged_peaks.columns.difference(pos_cols)] = np.NaN
 
-    def min_dist(merged_peak, peaks_list, score_name):
+    def min_dist(merged_peak, peaks_list):
         scores = peaks_list[
             (merged_peak['peak'] >= peaks_list['start']) &
             (merged_peak['peak'] <= peaks_list['stop']) &
@@ -506,7 +505,6 @@ def merge_peaks(ref_peaks: pd.DataFrame,
         func=lambda x: min_dist(
             merged_peak=x,
             peaks_list=peaks,
-            score_name=score_col
         ),
         axis=1
     )
@@ -523,7 +521,6 @@ def merge_beds(bed_files: list,
     Merge a list of bed according to position in a reference in the list
     :param file_cols:
     :param bed_files: list of pd.DataFrame representing bed files
-    :param ref_pos: position of the reference bed in the bed_files list
     :param merge_function: function to apply to the score column when
     removing duplicates
     :param size: int expand peaks of size size
@@ -672,13 +669,17 @@ def process_bed(file_names: list,
             score_cols=score_cols
         ),
         threshold=threshold,
-        log_name=PurePath(outdir).joinpath(
-            "idr_" + PurePath(str(file_names[0])).name
+        log_name=str(
+            PurePath(outdir).joinpath(
+            "idr_" + str(PurePath(str(file_names[0])).name)
+            )
         )
     )
     pd.Series(theta).to_csv(
-        PurePath(outdir).joinpath(
-            "idr_" + PurePath(str(file_names[0])).name + "_theta.csv"
+        str(
+            PurePath(outdir).joinpath(
+                "idr_" + str(PurePath(str(file_names[0])).name) + "_theta.csv"
+            )
         ),
         sep='\t',
         encoding='utf-8',
