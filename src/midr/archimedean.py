@@ -336,6 +336,7 @@ def ipsi_clayton(x, theta, is_log=False):
            [-1.05452015, -0.85128374, -2.14210478],
            [-2.47465594, -2.58334647, -1.40228078]])
     """
+    x = np.array(x, dtype=np.float128)
     res = np.sign(theta) * ((x ** -theta) - 1.0)
     if is_log:
         return np.log(res)
