@@ -769,7 +769,7 @@ def build_constraint(copula, old_theta=np.nan, eps=1.0):
             'theta_max': min([745.0, old_theta + eps])
         },
         'gumbel': {
-            'theta_min': max([1.0, old_theta - eps]),
+            'theta_min': max([1.0 + 1e-8, old_theta - eps]),
             'theta_max': min([100.0, old_theta + eps])
         }
     }
@@ -835,12 +835,13 @@ def samic(x_score, threshold=1e-4, log_name=""):
     :return (theta: dict, lidr: list) with theta the model parameters and
     lidr the local idr values for each measures
     >>> THETA_TEST_0 = {'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
-    >>> THETA_TEST_1 = {'pi': 0.1, 'mu': 4.0, 'sigma': 3.0, 'rho': 1.75}
+    >>> THETA_TEST_1 = {'pi': 0.1, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
     >>> DATA = sim_m_samples(n_value=10000,
-    ...                      m_sample=4,
+    ...                      m_sample=3,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
-    >>> samic(DATA["X"], threshold=0.0001)
+    >>> alpha, lidr = samic(DATA["X"], threshold=0.0001)
+    >>> np.sum((lidr < 0.5).all() == DATA["K"]) / len(lidr)
     """
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
     copula_list = ["clayton", "frank", "gumbel"]
