@@ -274,9 +274,40 @@ read_tsv("results/idr_boleyidr2_0.9999",
   geom_point(aes(x = l2FC, y = idr, color = rank_r1)) +
   facet_wrap(~method) +
   theme_bw()
+  
+colnames_boley <-c('chr', 'start', 'stop', 'name', 'score',
+                   'strand', 'signalValue', 'pValue', 'qValue',
+                   'peak', 'lidr', 'idr',
+                   'r1_start', 'r1_stop', 'r1_signalValue', 'r1_peak',
+                   'r2_start', 'r2_stop', 'r2_signalValue', 'r2_peak'
+                   )
+colnames_midr <- c('chr', 'start', 'stop', 'name',
+                   'score', 'strand', 'signalValue', 'pValue',
+                   'qValue', 'peak', 'midr')
+colnames_midr <- c('chr', 'start', 'stop', 'strand', 'signalValue', 'peak', 'midr')
 
+read_tsv("results_samic/idr_c1_r1.narrowPeak",
+              col_names = colnames_midr) %>%
+          mutate(replicate = 'r1') %>% 
+  bind_rows( read_tsv("results_samic/idr_c1_r2.narrowPeak",
+              col_names = colnames_midr) %>%
+          mutate(replicate = 'r2')
+          ) %>% 
+  spread(key = replicate, value = signalValue) %>%
+  mutate(rank_r1 = order(r1),
+         rank_r2 = order(r2)) %>%
+  mutate(l2FC = log2(r1/r2)) %>%
+  left_join(read_tsv("data/boleyidr2",
+         col_names = colnames_boley) %>%
+  mutate(replicate = 'boley')) %>% 
+  mutate(lidr = 10^(-lidr)) %>%
+  gather(lidr, midr, key = "method", value = "idr") %>%
+  ggplot(data = .) +
+  geom_point(aes(x = l2FC, y = idr, color = rank_r1)) +
+  facet_wrap(~method) +
+  theme_bw()
 
-read_tsv("results/idr_c1_r1.narrowPeak",
+read_tsv("results/idr_c1_r2.narrowPeak",
          col_names = c('chr', 'start', 'stop', 'name',
                        'score', 'strand', 'signalValue', 'pValue',
                        'qValue', 'peak', 'idr')) %>%
