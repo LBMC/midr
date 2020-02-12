@@ -80,6 +80,12 @@ def parse_args(args):
                      type=int,
                      help="distance to add before and after each peak before "
                           "merging")
+    arg.add_argument("--method", "-mt", metavar="METHOD",
+                     dest='method',
+                     required=False,
+                     default="archimedean",
+                     type=str,
+                     help="copula model to use('archimedean' or 'gaussian'")
     arg.add_argument("--debug", "-d", action="store_true",
                      default=False,
                      help="enable debugging")
@@ -112,10 +118,13 @@ def main():
     with CleanExit():
         try:
             log.setup_logging(OPTIONS)
+            model = idr.samic
+            if OPTIONS.method == 'gaussian':
+                model = idr.pseudo_likelihood
             narrowpeak.process_bed(
                 file_names=[OPTIONS.merged] + OPTIONS.files,
                 outdir=OPTIONS.output,
-                idr_func=idr.samic,
+                idr_func=model,
                 size=OPTIONS.size_merge,
                 merge_function=OPTIONS.merge_function,
                 score_cols=OPTIONS.score,
