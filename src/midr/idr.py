@@ -836,8 +836,8 @@ def samic(x_score, threshold=1e-4, log_name=""):
     lidr the local idr values for each measures
     >>> THETA_TEST_0 = {'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
     >>> THETA_TEST_1 = {'pi': 0.1, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
-    >>> DATA = sim_m_samples(n_value=10000,
-    ...                      m_sample=3,
+    >>> DATA = sim_m_samples(n_value=1000,
+    ...                      m_sample=4,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
     >>> alpha, lidr = samic(DATA["X"], threshold=0.0001)
@@ -914,12 +914,13 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     ...               'mu': THETA_TEST_1['mu'] - THETA_TEST_0['mu'],
     ...               'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
     ...               'rho': 0.75}
-    >>> DATA = sim_m_samples(n_value=10000,
-    ...                      m_sample=2,
+    >>> DATA = sim_m_samples(n_value=1000,
+    ...                      m_sample=4,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
-    >>> # (THETA_RES, LIDR) = pseudo_likelihood(DATA["X"],
-    # ...                                      threshold=0.01)
+    >>> (THETA_RES, lidr) = pseudo_likelihood(DATA["X"],
+    ...                                      threshold=0.01)
+    >>> np.sum((np.array(lidr) < 0.5).all() == DATA["K"]) / len(lidr)
     """
     theta_t0 = deepcopy(THETA_INIT)
     theta_t1 = deepcopy(THETA_INIT)
