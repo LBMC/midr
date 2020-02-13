@@ -1,99 +1,118 @@
 library(tidyverse)
-library(mvtnorm)
-library(gridExtra)
-library(cowplot)
 
-sim_data <- function(m = 1, cv = 0.5){
-  sim_data  <- rbind(
-    rmvnorm(
-      n = 10000,
-      mean = rep(0, 2),
-      sigma = diag(2)
-    ),
-    rmvnorm(
-      n = 10000,
-      mean = rep(m, 2),
-      sigma = matrix(c(1, cv, cv, 1), ncol = 2)
-    )
+colnames_boley <-c('chr', 'start', 'stop', 'name', 'score',
+                   'strand', 'signalValue', 'pValue', 'qValue',
+                   'peak', 'lidr', 'idr',
+                   'r1_start', 'r1_stop', 'r1_signalValue', 'r1_peak',
+                   'r2_start', 'r2_stop', 'r2_signalValue', 'r2_peak'
+                   )
+colnames_midr <- c('chr', 'start', 'stop', 'name',
+                   'score', 'strand', 'signalValue', 'pValue',
+                   'qValue', 'peak', 'midr')
+
+boley_data <- read_tsv("data/boleyidr2",
+         col_names = colnames_boley)
+boley_data %>% select(
+    colnames_midr[1:(length(colnames_midr) - 1)]
   ) %>%
-    data.frame() %>%
-    (function(x) {
-      names(x) <- c("z_1", "z_2")
-      return(x)
-    }) %>%
-    as_tibble() %>%
-    mutate(u_1 = pnorm(z_1),
-           u_2 = pnorm(z_2),
-           state = as.factor(c(rep("irep", 10000), rep("rep", 10000))))
-  return(sim_data)
-}
-
-
-plot_data <- function(sim_data, m, cv) {
-  empty <- ggplot() + geom_point(aes(1, 1), colour = "white") + theme(
-    axis.ticks = element_blank(),
-    panel.background = element_blank(),
-    axis.text.x = element_blank(),
-    axis.text.y = element_blank(),
-    axis.title.x = element_blank(),
-    axis.title.y = element_blank()
+  write_delim(
+    path = "data/boley_merge.NarrowPeak",
+    delim = "\t",
+    col_names = F
   )
-  p <- ggplot(data = sim_data, aes(x = z_1, y = z_2)) +
-    geom_density2d(
-      alpha = 0.8,
-      color = "gray",
-      size = 3,
-      h = 1
-    ) +
-    geom_density2d(aes(
-      group = state,
-      color = state,
-      fill = state
-    ),
-    size = 1.5,
-    h = 1) +
-    coord_quickmap() +
-    theme_bw()
-  hist_top <- ggplot(data = sim_data, aes(x = z_1)) +
-    geom_density() +
-    geom_density(aes( group = state, color = state, fill = state )) +
-    theme_classic() +
-    coord_quickmap() +
-    theme(legend.position = "none")
-  hist_right <- ggplot(data = sim_data, aes(x = z_2)) +
-    geom_density() +
-    geom_density(aes(group = state, color = state, fill = state)) +
-    coord_quickmap() +
-    coord_flip() +
-    labs(main = paste0("mean = ", m, ", cv = ", cv)) +
-    theme_classic() +
-  theme(legend.position = "none")
-  grid.arrange(
-    hist_top,
-    empty,
-    p,
-    hist_right,
-    ncol = 2,
-    nrow = 2,
-    widths = c(4, 1),
-    heights = c(1, 4)
-  )
-}
-sim_data(m = 2, cv = 0.8) %>%
-plot_data(m = 2, cv = 0.8)
 
-for (m in 1:2) {
-  for (cv in seq(0, 1, by = 0.1)) {
-    sim_data(m = m, cv = cv) %>%
-      plot_data(m = m, cv = cv) %>%
-      ggsave(
-        filename = paste0("results/sim_mean_", m, "_cv_", cv, ".pdf"),
-        plot = .,
-        width = 12,
-        height = 9
-      )
-  }
-}
+boley_data %>% select(
+    chr,
+    r1_start,
+    r1_stop,
+    name,
+    score,
+    strand,
+    r1_signalValue,
+    pValue,
+    qValue,
+    r1_peak
+  ) %>%
+  rename(
+    start = r1_start,
+    stop = r1_stop,
+    signalValue = r1_signalValue,
+    peak = r1_peak
+  ) %>%
+  write_delim(
+    path = "data/boley_r1.NarrowPeak",
+    delim = "\t",
+    col_names = F
+  )
+boley_data %>% select(
+    chr,
+    r2_start,
+    r2_stop,
+    name,
+    score,
+    strand,
+    r2_signalValue,
+    pValue,
+    qValue,
+    r2_peak
+  ) %>%
+  rename(
+    start = r2_start,
+    stop = r2_stop,
+    signalValue = r2_signalValue,
+    peak = r2_peak
+  ) %>%
+  write_delim(
+    path = "data/boley_r2.NarrowPeak",
+    delim = "\t",
+    col_names = F
+  )
+
+system("midr -m data/boley_merge.NarrowPeak -f data/boley_r1.NarrowPeak data/boley_r2.NarrowPeak -o results_archimedean")
+system("midr -m data/boley_merge.NarrowPeak -f data/boley_r1.NarrowPeak data/boley_r2.NarrowPeak -o results_gaussian -mt gaussian")
+
+samic_data <- read_tsv("results_archimedean/idr_boley_r1.NarrowPeak",
+                       col_names = colnames_midr) %>%
+  bind_cols(read_tsv("results_archimedean/idr_boley_r2.NarrowPeak",
+                       col_names = colnames_midr) %>% 
+              select(signalValue) %>%
+              rename(r2_signalValue = signalValue)
+  ) %>% 
+  mutate(l2fc = log2(signalValue / r2_signalValue),
+         rank_r1 = order(signalValue),
+         rank_r2 = order(r2_signalValue)) %>% 
+  select(-r2_signalValue)
+
+idr_data <- read_tsv("results_gaussian/idr_boley_r1.NarrowPeak",
+                       col_names = colnames_midr) %>%
+  bind_cols(read_tsv("results_gaussian/idr_boley_r2.NarrowPeak",
+                       col_names = colnames_midr) %>% 
+              select(signalValue) %>%
+              rename(r2_signalValue = signalValue)
+  ) %>% 
+  mutate(l2fc = log2(signalValue / r2_signalValue),
+         rank_r1 = order(signalValue),
+         rank_r2 = order(r2_signalValue)) %>% 
+  select(-r2_signalValue)
+
+boley_data %>%
+  mutate(l2fc = log2(r1_signalValue / r2_signalValue),
+         lidr = 10^(-lidr),
+         rank_r1 = order(r1_signalValue),
+         rank_r2 = order(r2_signalValue)) %>% 
+  select(c( colnames_midr[1:length(colnames_midr) - 1], lidr, l2fc, rank_r1, rank_r2)) %>%
+  rename(midr = lidr) %>% 
+  mutate(method = "boley") %>% 
+  bind_rows(samic_data %>%
+              mutate(method = "samic")) %>% 
+  bind_rows(idr_data %>%
+              mutate(method = "gaussian")) %>% 
+  mutate(rank = order(signalValue)) %>% 
+  ggplot() +
+  geom_point(aes(x = l2fc, y = midr, color = rank)) +
+  facet_wrap(~method) +
+  theme_bw()
+ggsave("boley_vs_gaussian_vs_samic.pdf")
 
 # boley
 read_tsv("data/boleyidr2",
@@ -275,15 +294,6 @@ read_tsv("results/idr_boleyidr2_0.9999",
   facet_wrap(~method) +
   theme_bw()
   
-colnames_boley <-c('chr', 'start', 'stop', 'name', 'score',
-                   'strand', 'signalValue', 'pValue', 'qValue',
-                   'peak', 'lidr', 'idr',
-                   'r1_start', 'r1_stop', 'r1_signalValue', 'r1_peak',
-                   'r2_start', 'r2_stop', 'r2_signalValue', 'r2_peak'
-                   )
-colnames_midr <- c('chr', 'start', 'stop', 'name',
-                   'score', 'strand', 'signalValue', 'pValue',
-                   'qValue', 'peak', 'midr')
 colnames_midr <- c('chr', 'start', 'stop', 'strand', 'signalValue', 'peak', 'midr')
 
 read_tsv("results_samic/idr_c1_r1.narrowPeak",
