@@ -18,6 +18,7 @@ import argparse
 import midr.narrowpeak as narrowpeak
 import midr.log as log
 import midr.idr as idr
+import midr.samic as samic
 
 
 class CustomFormatter(argparse.RawDescriptionHelpFormatter,
