@@ -576,11 +576,11 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     ...               'sigma': THETA_TEST_0['sigma'] / THETA_TEST_1['sigma'],
     ...               'rho': 0.75}
     >>> DATA = sim_m_samples(n_value=1000,
-    ...                      m_sample=4,
+    ...                      m_sample=2,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
     >>> (THETA_RES, lidr) = pseudo_likelihood(DATA["X"],
-    ...                                      threshold=0.01)
+    ...                                      threshold=0.0001)
     >>> np.sum((np.array(lidr) < 0.5).all() == DATA["K"]) / len(lidr)
     """
     theta_t0 = deepcopy(THETA_INIT)
@@ -624,16 +624,24 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
             logl=logl_t1,
             pseudo=True
         )
-    log.plot_log(logger, str(log_name) + "_log.pdf")
-    log.plot_classif(
-        x_score,
-        u_values,
-        z_values,
-        lidr,
-        str(log_name) + "_classif.pdf"
-    )
-    log.LOGGER.debug("%s", str(theta_t1))
+        log.LOGGER.debug("%s", log_idr(theta_t1, logger))
     return theta_t1, lidr
+
+
+def log_idr(theta, logger):
+    """
+    return str of pseudo_likelihood parameter estimate
+    :param theta:
+    :param logger:
+    :return:
+    """
+    return str('{' +
+            '"theta": "' + str(theta) + '", ' +
+            '"pi": ' + str(logger['pi']) + '", ' +
+            '"mu": ' + str(logger['mu']) + '", ' +
+            '"sigma": ' + str(logger['sigma']) + '", ' +
+            '"rho": ' + str(logger['rho']) + '", ' +
+            '}')
 
 
 THETA_INIT = {
