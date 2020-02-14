@@ -367,17 +367,19 @@ def log_samic(params_list, copula_list):
     """
     return str of pseudo_likelihood parameter estimate
     :param params_list:
+    :param copula_list:
     :return:
     """
-    log = str('{' +
-               '"alpha": "' + str(params_list['alpha']) + '", '
-              )
+    log_str = str('{' +
+                  '"alpha": "' + str(params_list['alpha']) + '", '
+                  )
     for copula in copula_list:
-        log += str('"' + copula + '": {'
-               '"theta": "' + str(params_list[copula]['theta']) + '", ' +
-               '"pi": ' + str(params_list[copula]['pi']) + '", ' +
-               '}')
-    return log + '}'
+        log_str += str('"' + copula + '": {'
+                                      '"theta": "' + str(
+            params_list[copula]['theta']) + '", ' +
+                       '"pi": ' + str(params_list[copula]['pi']) + '", ' +
+                       '}')
+    return log_str + '}'
 
 
 if __name__ == "__main__":
