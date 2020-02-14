@@ -118,7 +118,7 @@ def main():
     with CleanExit():
         try:
             log.setup_logging(OPTIONS)
-            model = idr.samic
+            model = samic.samic
             if OPTIONS.method == 'gaussian':
                 model = idr.pseudo_likelihood
             narrowpeak.process_bed(

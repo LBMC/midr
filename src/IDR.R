@@ -114,6 +114,7 @@ boley_data %>%
   theme_bw()
 ggsave("boley_vs_gaussian_vs_samic.pdf")
 
+
 # boley
 read_tsv("data/boleyidr2",
          col_names = c('chr', 'start', 'stop', 'name', 'score',
