@@ -371,13 +371,13 @@ def log_samic(params_list, copula_list):
     :return:
     """
     log_str = str('{' +
-                  '"alpha": "' + str(params_list['alpha'])
+                  '"alpha": ' + str(params_list['alpha'])
                   )
     for copula in copula_list:
         log_str += str(', "' + copula + '": {'
-                                      '"theta": "' + str(
-            params_list[copula]['theta']) + '", ' +
-                       '"pi": ' + str(params_list[copula]['pi']) + '", ' +
+                                      '"theta": ' + str(
+            params_list[copula]['theta']) + ', ' +
+                       '"pi": ' + str(params_list[copula]['pi']) + ', ' +
                        '}')
     return log_str + '}'
 
