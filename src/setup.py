@@ -23,7 +23,7 @@ setuptools.setup(
     description="Compute idr from m NarrowPeak files and a merged NarrowPeak",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/LBMC/midr",
+    url="https://gitbio.ens-lyon.fr/LBMC/sbdm/midr",
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: CEA CNRS Inria Logiciel Libre License, \
