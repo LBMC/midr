@@ -355,11 +355,29 @@ def samic(x_score, threshold=1e-4, log_name=""):
         params_list['alpha'] = minimize_alpha(
             l_state=params_list['l_state']
         )
+        log.LOGGER.debug("%s", log_samic(params_list, copula_list))
     return params_list['alpha'], local_idr(
         u_values=u_values,
         copula_list=copula_list,
         params_list=params_list
     )
+
+
+def log_samic(params_list, copula_list):
+    """
+    return str of pseudo_likelihood parameter estimate
+    :param params_list:
+    :return:
+    """
+    log = str('{' +
+               '"alpha": "' + str(params_list['alpha']) + '", '
+              )
+    for copula in copula_list:
+        log += str('"' + copula + '": {'
+               '"theta": "' + str(params_list[copula]['theta']) + '", ' +
+               '"pi": ' + str(params_list[copula]['pi']) + '", ' +
+               '}')
+    return log + '}'
 
 
 if __name__ == "__main__":
