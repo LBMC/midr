@@ -586,7 +586,6 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     theta_t0 = deepcopy(THETA_INIT)
     theta_t1 = deepcopy(THETA_INIT)
     k_state = [0.0] * int(x_score.shape[0])
-    lidr = [0.0] * int(x_score.shape[0])
     logger = {
         'logl': list(),
         'pi': list(),
@@ -609,10 +608,6 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
             theta=theta_t1,
             threshold=threshold
         )
-        lidr = local_idr(
-            z_values=z_values,
-            theta=theta_t1
-        )
         logl_t1 = loglikelihood(
             z_values=z_values,
             k_state=k_state,
@@ -625,7 +620,10 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
             pseudo=True
         )
         log.LOGGER.debug("%s", log_idr(theta_t1, logger))
-    return theta_t1, lidr
+    return local_idr(
+        z_values=z_values,
+        theta=theta_t1
+    )
 
 
 def log_idr(theta, logger):

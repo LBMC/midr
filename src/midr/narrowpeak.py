@@ -675,7 +675,7 @@ def process_bed(file_names: list,
         score_cols=score_cols,
         pos_cols=pos_cols,
     )
-    theta, local_idr = idr_func(
+    local_idr = idr_func(
         narrowpeaks2array(
             np_list=bed_files,
             score_cols=score_cols
@@ -686,17 +686,6 @@ def process_bed(file_names: list,
             "idr_" + str(PurePath(str(file_names[0])).name)
             )
         )
-    )
-    pd.Series(theta).to_csv(
-        str(
-            PurePath(outdir).joinpath(
-                "idr_" + str(PurePath(str(file_names[0])).name) + "_theta.csv"
-            )
-        ),
-        sep='\t',
-        encoding='utf-8',
-        header=True,
-        index=False
     )
     writefiles(
         bed_files=bed_files,
