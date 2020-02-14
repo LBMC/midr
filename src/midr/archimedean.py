@@ -13,6 +13,7 @@ call for the merged replicate. This tool computes and appends a IDR column to
 NarrowPeaks files.
 """
 
+from sys import float_info
 import numpy as np
 from scipy.optimize import minimize
 from scipy.special import factorial
@@ -247,7 +248,7 @@ def dmle_copula_clayton(u_values):
         u_values=u_values,
         diag_pdf=diag_pdf_clayton,
         init=0.5,
-        constraint=[{'type': 'ineq', 'fun': lambda x: 1e-14},
+        constraint=[{'type': 'ineq', 'fun': lambda x: float_info.min},
                     {'type': 'ineq', 'fun': lambda x: 1000 - x}]
     )
 
@@ -276,7 +277,7 @@ def dmle_copula_frank(u_values):
         u_values=u_values,
         diag_pdf=diag_pdf_frank,
         init=0.5,
-        constraint=[{'type': 'ineq', 'fun': lambda x: x - 1e-14},
+        constraint=[{'type': 'ineq', 'fun': lambda x: x - float_info.min},
                     {'type': 'ineq', 'fun': lambda x: 745 - x}]
     )
 
@@ -339,8 +340,8 @@ def ipsi_clayton(x, theta, is_log=False):
     x = np.array(x, dtype=np.float128)
     res = np.sign(theta) * ((x ** -theta) - 1.0)
     if is_log:
-        return np.log(res)
-    return res
+        return np.array(np.log(res), dtype=np.float64)
+    return np.array(res, dtype=np.float64)
 
 
 def psi_clayton(x, theta):
@@ -520,13 +521,13 @@ def dmle_copula_gumbel(u_values):
     ...   [0.22437343, 0.16907646, 0.5740400],
     ...   [0.66752741, 0.69487362, 0.3329266]
     ...    ]))
-    1.1658220393893608
+    1.1658220337182064
     """
     return max_diag_pdf(
         u_values=u_values,
         diag_pdf=diag_pdf_gumbel,
         init=1.5,
-        constraint=[{'type': 'ineq', 'fun': lambda x: x - (1 + 1e-14)},
+        constraint=[{'type': 'ineq', 'fun': lambda x: x - (1 + float_info.min)},
                     {'type': 'ineq', 'fun': lambda x: 100 - x}]
     )
 
@@ -860,9 +861,15 @@ def polylog(z, s, is_log_z=False):
     if is_log_z:
         w = z
         z = np.exp(w)
-        return np.log(polyneval(eun, z)) + w - (n + 1.0) * log1mexp(-w)
+        return np.array(
+            np.log(polyneval(eun, z)) + w - (n + 1.0) * log1mexp(-w),
+            dtype=np.float64
+        )
     else:
-        return np.log(polyneval(eun, z)) + np.log(z) - (n + 1.0) * np.log1p(-z)
+        return np.array(
+            np.log(polyneval(eun, z)) + np.log(z) - (n + 1.0) * np.log1p(-z),
+            dtype=np.float64
+        )
 
 
 def pdf_frank(u_values, theta, is_log=False):

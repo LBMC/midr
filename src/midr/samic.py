@@ -13,6 +13,7 @@ call for the merged replicate. This tool computes and appends a IDR column to
 NarrowPeaks files.
 """
 
+from sys import float_info
 from scipy.optimize import minimize
 import numpy as np
 import midr.log as log
@@ -59,7 +60,7 @@ def expectation_k(u_values, copula, params_list):
             params_list[copula]['theta'],
         )
     )
-    return np.minimum(k_state, 1.0 - 1e-8)
+    return np.minimum(k_state, 1.0)
 
 
 def expectation_l(u_values, copula_list, params_list):
@@ -187,7 +188,7 @@ def minimize_alpha(l_state):
 
 
 def constraint(x, theta_min=np.nan, theta_max=np.nan, return_min=True,
-               eps=1e-8):
+               eps=float_info.min):
     """
     compute contraint for theta ineq
     :param x:
@@ -224,7 +225,7 @@ def build_constraint(copula, old_theta=np.nan, eps=1.0):
             'theta_max': min([745.0, old_theta + eps])
         },
         'gumbel': {
-            'theta_min': max([1.0 + 1e-8, old_theta - eps]),
+            'theta_min': max([1.0 + float_info.min, old_theta - eps]),
             'theta_max': min([100.0, old_theta + eps])
         }
     }
@@ -274,9 +275,7 @@ def minimize_theta(u_values, copula, params_list):
         fun=lambda x: density_mix(
             u_values=u_values,
             copula=copula,
-            theta=x,
-            k_state=params_list[copula]['k_state'],
-            l_state=params_list['l_state'][:, params_list['order'][copula]]
+            theta=x
         ),
         x0=old_theta,
         constraints=constraints,
@@ -299,7 +298,7 @@ def samic(x_score, threshold=1e-4, log_name=""):
     lidr the local idr values for each measures
     >>> THETA_TEST_0 = {'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
     >>> THETA_TEST_1 = {'pi': 0.1, 'mu': 4.0, 'sigma': 3.0, 'rho': 0.75}
-    >>> DATA = sim_m_samples(n_value=1000,
+    >>> DATA = sim_m_samples(n_value=10000,
     ...                      m_sample=4,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
