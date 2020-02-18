@@ -543,17 +543,14 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... )
       chr   start    stop strand    peak  signalValue  qValue
     0   a     101     501      .     250         20.0    20.0
-    1   a    1001    3001      .    2000        100.0   100.0
-    2   a    4001   10001      .    7000         14.0    14.0
-    3   a  100000  110001      .  100000         30.0    30.0
-    4   a  200001  230001      .  215000        300.0   300.0
+    1   a     101     501      .     280         15.0    15.0
+    2   a    1001    3001      .    2000        100.0   100.0
+    3   a    4001   10001      .    7000         14.0    14.0
+    4   a  100000  110001      .  100000         30.0    30.0
+    5   a  200001  230001      .  215000        300.0   300.0
+    6   a  200001  230001      .  215000        300.0   300.0
     """
-    return collapse_peaks(
-        peaks=ref_peaks.copy(),
-        merge_function=merge_function,
-        score_col=score_col,
-        file_cols=file_cols
-    ).apply(
+    return ref_peaks.apply(
         func=lambda x: overlapping_peaks(
             ref_peak=x,
             peaks=peaks,
@@ -621,12 +618,10 @@ def merge_beds(bed_files: list,
     ... pos_cols=narrowpeaks_sort_cols()
     ... )
     [  chr   start    stop strand    peak  signalValue  qValue
-    0   a     100     500      .     250         20.0    20.0
-    2   a    1000    3000      .    2000        100.0   100.0
-    3   a    4000   10000      .    7000         15.0    15.0
-    4   a  100000  110000      .  100000         30.0    30.0
-    5   a  200000  230000      .  213000        150.0   150.0
-    6   a  200000  230000      .  215000        200.0   200.0,   chr   start    stop strand    peak  signalValue  qValue
+    0   a     100     500      .     260         50.0    20.0
+    2   a    4000   10000      .    7000         15.0    15.0
+    3   a  100000  110000      .  100000         30.0    30.0
+    4   a  200000  230000      .  214000        350.0   150.0,   chr   start    stop strand    peak  signalValue  qValue
     0   a     100     500      .     250         20.0    20.0
     2   a    4000   10000      .    7000         14.0    14.0
     3   a  100000  110000      .  100000         30.0    30.0
@@ -636,7 +631,15 @@ def merge_beds(bed_files: list,
     3   a  100000  110000      .  100000         31.0    31.0
     4   a  200000  230000      .  215000        301.0   301.0]
     """
-    merged_files = [expand_peaks(bed_files[0].copy(), size=size)]
+    merged_files = [expand_peaks(
+        collapse_peaks(
+            peaks=bed_files[0].copy(),
+            merge_function=merge_function,
+            score_col=score_col,
+            file_cols=file_cols
+        ),
+        size=size
+    )]
     nan_pos = []
     i = 0
     for bed in bed_files[1:]:
