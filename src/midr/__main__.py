@@ -14,6 +14,8 @@ NarrowPeaks files.
 import logging
 import sys
 import argparse
+from os import path, access, W_OK, makedirs
+from pathlib import PurePath
 
 import midr.narrowpeak as narrowpeak
 import midr.log as log
@@ -112,12 +114,16 @@ class CleanExit:
         return exc_type is None
 
 
-def main(options):
+def main(options=parse_args(args=sys.argv[1:])):
     """
     body of the idr tool
     """
     with CleanExit():
         try:
+            assert access(PurePath(options.output).parent, W_OK), \
+                "Folder {} isn't writable".format(options.output)
+            if not path.isdir(options.output):
+                makedirs(options.output)
             log.setup_logging(options)
             model = samic.samic
             if options.method == 'gaussian':
@@ -142,4 +148,4 @@ def main(options):
 
 
 if __name__ == "__main__":
-    main(parse_args(args=sys.argv[1:]))
+    main(options=parse_args(args=sys.argv[1:]))

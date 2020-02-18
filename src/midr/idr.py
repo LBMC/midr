@@ -322,9 +322,9 @@ def h_function(z_values, m_sample, theta):
         )
         return pd.Series(x_values)
     except ValueError as err:
-        log.LOGGER.exception("%s", "error: h_function: " + str(err))
-        log.LOGGER.exception("%s", str(cov))
-        log.LOGGER.exception("%s", str(theta))
+        log.logging.exception("%s", "error: h_function: " + str(err))
+        log.logging.exception("%s", str(cov))
+        log.logging.exception("%s", str(theta))
 
 
 def e_step_k(z_values, theta):
@@ -451,9 +451,9 @@ def loglikelihood(z_values, k_state, theta):
                     math.log(float(theta['pi'])) + math.log(h1_x[i]))
         return logl
     except ValueError as err:
-        log.LOGGER.exception("%s", "error: logLikelihood: " + str(err))
-        log.LOGGER.exception("%s", str(h1_x[i]))
-        log.LOGGER.exception("%s", str(theta))
+        log.logging.exception("%s", "error: logLikelihood: " + str(err))
+        log.logging.exception("%s", str(h1_x[i]))
+        log.logging.exception("%s", str(theta))
         quit(-1)
 
 
@@ -545,11 +545,11 @@ def em_pseudo_data(z_values,
             theta=theta_t1
         )
         if logl_t1 - logl_t0 < 0.0:
-            log.LOGGER.debug("%s",
+            log.logging.debug("%s",
                              "warning: EM decreassing logLikelihood \
                              rho: " +
                              str(logl_t1 - logl_t0))
-            log.LOGGER.debug("%s", str(theta_t1))
+            log.logging.debug("%s", str(theta_t1))
             return theta_t0, k_state, logger
         logger = log.add_log(
             log=logger,
@@ -619,7 +619,7 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
             logl=logl_t1,
             pseudo=True
         )
-        log.LOGGER.debug("%s", log_idr(theta_t1, logger))
+        log.logging.info("%s", log_idr(theta_t1, logger))
     return local_idr(
         z_values=z_values,
         theta=theta_t1

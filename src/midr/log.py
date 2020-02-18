@@ -27,14 +27,22 @@ def add_log(log, theta, logl, pseudo):
 
 def setup_logging(options):
     """Configure logging."""
-    root = logging.getLogger("")
-    root.setLevel(logging.WARNING)
-    LOGGER.setLevel(options.debug and logging.DEBUG or logging.INFO)
+    root = logging.getLogger(__name__)
+    root.setLevel(logging.INFO)
+    file_handler = logging.FileHandler(options.output + "/log.txt")
+    file_handler.setLevel(logging.INFO)
+    root.addHandler(file_handler)
+    handler_list = [file_handler]
     if options.verbose:
-        message = logging.StreamHandler()
-        message.setFormatter(logging.Formatter(
-            "%(asctime)s: %(message)s", datefmt='%H:%M:%S'))
-        root.addHandler(message)
+        console = logging.StreamHandler()
+        console.setLevel(logging.INFO)
+        root.addHandler(console)
+        handler_list.append(console)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s: %(message)s", datefmt='%H:%M:%S',
+        handlers=handler_list
+    )
 
 
 def plot_log(log, file_name):
@@ -113,6 +121,3 @@ def plot_samic(params_list, copula_list, file_name, iter, loglik):
     plt.ylabel("loglik")
     plt.xlabel('steps')
     plt.savefig(file_name)
-
-
-LOGGER = logging.getLogger(path.splitext(path.basename(sys.argv[0]))[0])

@@ -355,7 +355,7 @@ def samic(x_score, threshold=1e-4, log_name=""):
         params_list['alpha'] = minimize_alpha(
             l_state=params_list['l_state']
         )
-        log.LOGGER.debug("%s", log_samic(params_list, copula_list))
+        log.logging.info("%s", log_samic(params_list, copula_list))
     return local_idr(
         u_values=u_values,
         copula_list=copula_list,

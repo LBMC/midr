@@ -6,13 +6,13 @@ This section of the project provides facilitites to handle NarrowPeaks files
 and compute IDR on the choosen value in the NarrowPeaks columns
 """
 
-from os import path, access, R_OK, W_OK, makedirs
+from os import path, access, R_OK
 from pathlib import PurePath
 from typing import Callable
 from scipy.stats import rankdata
 import numpy as np
 import pandas as pd
-
+import midr.log as log
 
 def narrowpeaks_cols() -> list:
     """
@@ -50,7 +50,7 @@ def readbed(bed_path: PurePath,
     """
     assert path.isfile(str(bed_path)), "File {str(bed_path)} doesn't exist"
     assert access(str(bed_path), R_OK), "File {str(bed_path)} isn't readable"
-
+    log.logging.info("%s", "reading " + str(bed_path))
     def move_peak(x):
         """
         x move peak in x according to the start pos
@@ -466,7 +466,6 @@ def overlapping_peaks(ref_peak, peaks, score_col):
 
 def merge_peaks(ref_peaks: pd.DataFrame,
                 peaks: pd.DataFrame,
-                size: int = 100,
                 merge_function=sum,
                 score_col: str = None,
                 file_cols: list = None,
@@ -477,7 +476,6 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     :param file_cols:
     :param ref_peaks: pd.DataFrame which is a copy of ref_peaks
     :param peaks: pd.DataFrame of the peaks we want to merge
-    :param size: int expand peaks of size size
     :param merge_function: function to apply to the score column when
     removing duplicates
     :param score_col: str with the name of the score column
@@ -511,7 +509,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... pos_cols=narrowpeaks_sort_cols()
     ... )
       chr   start    stop strand    peak  signalValue  qValue
-    0   a     100     500      .     200         15.0    15.0
+    0   a      50      60      .      55          NaN    10.0
     1   a     100     500      .     250         20.0    20.0
     2   a    1000    3000      .    2000        100.0   100.0
     3   a    4000   10000      .    7000         14.0    14.0
@@ -550,26 +548,18 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     3   a  100000  110001      .  100000         30.0    30.0
     4   a  200001  230001      .  215000        300.0   300.0
     """
-    return expand_peaks(
-        peaks=expand_peaks(
-            peaks=collapse_peaks(
-                peaks=ref_peaks.copy(),
-                merge_function=merge_function,
-                score_col=score_col,
-                file_cols=file_cols
-            ),
-            size=size
-        ).apply(
-            func=lambda x: overlapping_peaks(
-                ref_peak=x,
-                peaks=expand_peaks(
-                    peaks=peaks,
-                    size=size),
-                score_col=score_col
-            ),
-            axis=1
+    return collapse_peaks(
+        peaks=ref_peaks.copy(),
+        merge_function=merge_function,
+        score_col=score_col,
+        file_cols=file_cols
+    ).apply(
+        func=lambda x: overlapping_peaks(
+            ref_peak=x,
+            peaks=peaks,
+            score_col=score_col
         ),
-        size=-size
+        axis=1
     )
 
 
@@ -646,15 +636,18 @@ def merge_beds(bed_files: list,
     3   a  100000  110000      .  100000         31.0    31.0
     4   a  200000  230000      .  215000        301.0   301.0]
     """
-    merged_files = [bed_files[0].copy()]
+    merged_files = [expand_peaks(bed_files[0].copy(), size=size)]
     nan_pos = []
+    i = 0
     for bed in bed_files[1:]:
+        i += 1
+        log.logging.info("%s", "merging " + str(i) + "/" + str(len(
+            bed_files)))
         merged_files.append(
             merge_peaks(
-                ref_peaks=bed_files[0],
-                peaks=bed,
+                ref_peaks=merged_files[0],
+                peaks=expand_peaks(bed, size=size),
                 merge_function=merge_function,
-                size=size,
                 file_cols=file_cols,
                 score_col=score_col,
                 pos_cols=pos_cols
@@ -667,7 +660,10 @@ def merge_beds(bed_files: list,
         )
     nan_pos = set(nan_pos)
     for merged in range(len(merged_files)):
-        merged_files[merged] = merged_files[merged].drop(nan_pos)
+        merged_files[merged] = expand_peaks(
+            merged_files[merged].drop(nan_pos),
+            size=-size
+        )
     return merged_files
 
 
@@ -723,10 +719,7 @@ def process_bed(file_names: list,
     """
     if file_cols is None:
         file_cols = narrowpeaks_cols()
-    assert access(PurePath(outdir).parent, W_OK), \
-        "Folder {} isn't writable".format(outdir)
-    if not path.isdir(outdir):
-        makedirs(outdir)
+    log.logging.info("%s", "reading bed files")
     bed_files = readfiles(
         file_names=file_names,
         size=size,
@@ -735,6 +728,7 @@ def process_bed(file_names: list,
         score_cols=score_cols,
         pos_cols=pos_cols,
     )
+    log.logging.info("%s", "computing idr")
     local_idr = idr_func(
         narrowpeaks2array(
             np_list=bed_files[1:],
@@ -747,6 +741,7 @@ def process_bed(file_names: list,
             )
         )
     )
+    log.logging.info("%s", "writing results")
     writefiles(
         bed_files=bed_files,
         file_names=file_names,
