@@ -303,8 +303,8 @@ def collapse_peaks(peaks: pd.DataFrame,
                    score_col: str = None,
                    file_cols: list = None) -> pd.DataFrame:
     """
-    Copy peaks values from peaks into the corresponding position in merged_peaks
-    Peaks not found in peaks have a score of nan
+    Merge peak overlapping the same position and apply merge_function to
+    their score
     :param file_cols:
     :param peaks: pd.DataFrame of the peaks we want to merge
     :param merge_function: function to apply to the score column when
@@ -488,12 +488,14 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     3   a  100000  110000      .  100000         30.0    30.0
     4   a  200000  230000      .  214000        300.0   150.0
     """
+    # fusion of similar peaks
     merged_peaks = collapse_peaks(
         peaks=ref_peaks.copy(),
         merge_function=merge_function,
         score_col=score_col,
         file_cols=file_cols
     )
+    # inscrease peak size to ensure overlapp
     peaks = expand_peaks(
         peaks=peaks,
         size=size
@@ -523,7 +525,10 @@ def merge_peaks(ref_peaks: pd.DataFrame,
         ),
         axis=1
     )
-    return merged_peaks
+    return expand_peaks(
+        peaks=merged_peaks,
+        size=-size
+    )
 
 
 def merge_beds(bed_files: list,
