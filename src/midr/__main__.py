@@ -112,24 +112,24 @@ class CleanExit:
         return exc_type is None
 
 
-def main():
+def main(options):
     """
     body of the idr tool
     """
     with CleanExit():
         try:
-            log.setup_logging(OPTIONS)
+            log.setup_logging(options)
             model = samic.samic
-            if OPTIONS.method == 'gaussian':
+            if options.method == 'gaussian':
                 model = idr.pseudo_likelihood
             narrowpeak.process_bed(
-                file_names=[OPTIONS.merged] + OPTIONS.files,
-                outdir=OPTIONS.output,
+                file_names=[options.merged] + options.files,
+                outdir=options.output,
                 idr_func=model,
-                size=OPTIONS.size_merge,
-                merge_function=OPTIONS.merge_function,
-                score_cols=OPTIONS.score,
-                threshold=OPTIONS.threshold,
+                size=options.size_merge,
+                merge_function=options.merge_function,
+                score_cols=options.score,
+                threshold=options.threshold,
                 file_cols=narrowpeak.narrowpeaks_cols(),
                 pos_cols=narrowpeak.narrowpeaks_sort_cols()
             )
@@ -141,7 +141,5 @@ def main():
             sys.exit(0)
 
 
-OPTIONS = parse_args(args=sys.argv[1:])
-
 if __name__ == "__main__":
-    main()
+    main(parse_args(args=sys.argv[1:]))
