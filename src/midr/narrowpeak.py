@@ -9,6 +9,7 @@ and compute IDR on the choosen value in the NarrowPeaks columns
 from os import path, access, R_OK, W_OK, makedirs
 from pathlib import PurePath
 from typing import Callable
+from scipy.stats import rankdata
 import numpy as np
 import pandas as pd
 
@@ -51,6 +52,11 @@ def readbed(bed_path: PurePath,
     assert access(str(bed_path), R_OK), "File {str(bed_path)} isn't readable"
 
     def move_peak(x):
+        """
+        x move peak in x according to the start pos
+        :param x:
+        :return:
+        """
         x['peak'] += x['start']
         return x
     return pd.read_csv(
@@ -150,15 +156,27 @@ def readfiles(file_names: list,
     )
 
 
+def benjamini_hochberg(p_vals):
+    """
+    compute fdr from pvalues
+    :param p_vals:
+    :return:
+    """
+    ranked_p_values = rankdata(p_vals)
+    fdr = p_vals * len(p_vals) / ranked_p_values
+    fdr[fdr > 1] = 1
+    return fdr
+
+
 def writefiles(bed_files: list,
                file_names: list,
-               idr: np.array,
+               lidr: np.array,
                outdir: str = "results/"):
     """
     Write output of IDR computation
     :param bed_files: list of bed files (pd.DataFrame)
     :param file_names: list of files names (str)
-    :param idr: np.array with local IDR score (columns correspond to bed files)
+    :param lidr: np.array with local IDR score (columns correspond to bed files)
     :param outdir: output directory
     :return: nothing
     """
@@ -166,11 +184,16 @@ def writefiles(bed_files: list,
     def move_peak(x):
         x['peak'] -= x['start']
         return x
-    for bed, file_name in zip(bed_files, file_names[1:]):
+    idr = benjamini_hochberg(p_vals=lidr)
+    for bed, file_name in zip(bed_files, file_names):
         output_name = PurePath(outdir).joinpath(
             "idr_" + PurePath(str(file_name)).name
         )
-        bed.assign(idr=idr).apply(
+        bed.assign(
+            lidr=lidr
+        ).assign(
+            idr=idr
+        ).apply(
             func=move_peak,
             axis=1
         ).to_csv(
@@ -609,6 +632,12 @@ def merge_beds(bed_files: list,
     ... )
     [  chr   start    stop strand    peak  signalValue  qValue
     0   a     100     500      .     250         20.0    20.0
+    2   a    1000    3000      .    2000        100.0   100.0
+    3   a    4000   10000      .    7000         15.0    15.0
+    4   a  100000  110000      .  100000         30.0    30.0
+    5   a  200000  230000      .  213000        150.0   150.0
+    6   a  200000  230000      .  215000        200.0   200.0,   chr   start    stop strand    peak  signalValue  qValue
+    0   a     100     500      .     250         20.0    20.0
     2   a    4000   10000      .    7000         14.0    14.0
     3   a  100000  110000      .  100000         30.0    30.0
     4   a  200000  230000      .  215000        300.0   300.0,   chr   start    stop strand    peak  signalValue  qValue
@@ -617,7 +646,7 @@ def merge_beds(bed_files: list,
     3   a  100000  110000      .  100000         31.0    31.0
     4   a  200000  230000      .  215000        301.0   301.0]
     """
-    merged_files = []
+    merged_files = [bed_files[0].copy()]
     nan_pos = []
     for bed in bed_files[1:]:
         merged_files.append(
@@ -708,20 +737,20 @@ def process_bed(file_names: list,
     )
     local_idr = idr_func(
         narrowpeaks2array(
-            np_list=bed_files,
+            np_list=bed_files[1:],
             score_cols=score_cols
         ),
         threshold=threshold,
         log_name=str(
             PurePath(outdir).joinpath(
-            "idr_" + str(PurePath(str(file_names[0])).name)
+                "idr_" + str(PurePath(str(file_names[0])).name)
             )
         )
     )
     writefiles(
         bed_files=bed_files,
         file_names=file_names,
-        idr=local_idr,
+        lidr=local_idr,
         outdir=outdir
     )
 
