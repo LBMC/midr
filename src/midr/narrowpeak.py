@@ -386,7 +386,7 @@ def expand_peaks(peaks: pd.DataFrame, size: int = 100) -> pd.DataFrame:
     8   a  199900  230100      .  215000          300     300
     9   a  199900  230100      .  220000          400     400
     """
-    def expand(x, add_size=size):
+    def expand(x, add_size):
         """
         function to exand one peak
         :param x:
@@ -397,8 +397,47 @@ def expand_peaks(peaks: pd.DataFrame, size: int = 100) -> pd.DataFrame:
         x['stop'] += add_size
         return x
     return peaks.apply(
-        func=lambda x: expand(x),
+        func=lambda x: expand(x, add_size=size),
         axis=1
+    )
+
+
+def min_dist(ref_peak, peaks, score_col):
+    """
+    Find closest peak to ref_peak in peaks
+    :param ref_peak:
+    :param peaks:
+    :param score_col:
+    :return:
+    """
+    if peaks.empty:
+        peaks = ref_peak.copy()
+        peaks[score_col] = np.NaN
+        return peaks
+    return peaks.loc[
+        peaks.apply(
+            func=lambda x: abs(x['peak'] - ref_peak['peak']),
+            axis=1
+        ).idxmin()
+    ]
+
+
+def overlapping_peaks(ref_peak, peaks, score_col):
+    """
+    Find list of overlapping peaks to ref_peak in peaks
+    :param ref_peak:
+    :param peaks:
+    :param score_col:
+    :return:
+    """
+    return min_dist(
+        ref_peak=ref_peak,
+        peaks=peaks[
+            (ref_peak['peak'] >= peaks['start']) &
+            (ref_peak['peak'] <= peaks['stop']) &
+            (ref_peak['chr'] == peaks['chr'])
+        ].copy(),
+        score_col=score_col
     )
 
 
@@ -449,12 +488,12 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... pos_cols=narrowpeaks_sort_cols()
     ... )
       chr   start    stop strand    peak  signalValue  qValue
-    0   a      50      60      .      55         15.0    10.0
+    0   a     100     500      .     200         15.0    15.0
     1   a     100     500      .     250         20.0    20.0
     2   a    1000    3000      .    2000        100.0   100.0
-    3   a    4000   10000      .    7000         14.0    15.0
+    3   a    4000   10000      .    7000         14.0    14.0
     4   a  100000  110000      .  100000         30.0    30.0
-    5   a  200000  230000      .  215000        300.0   200.0
+    5   a  200000  230000      .  215000        300.0   300.0
     >>> merge_peaks(
     ... ref_peaks=pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a'],
@@ -466,10 +505,10 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'qValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0]}),
     ... peaks=pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
-    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
-    ... 200000],
-    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
-    ... 230000],
+    ... 'start': [101, 101, 1001, 4001, 4001, 4001, 100000, 200001, 200001,
+    ... 200001],
+    ... 'stop': [501, 501, 3001, 10001, 10001, 10001, 110001, 230001, 230001,
+    ... 230001],
     ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
     ... 'peak': [250, 280, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
     ... 220000],
@@ -482,51 +521,31 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... pos_cols=narrowpeaks_sort_cols()
     ... )
       chr   start    stop strand    peak  signalValue  qValue
-    0   a     100     500      .     260         20.0    20.0
-    1   a    1000    3000      .    2000        100.0   100.0
-    2   a    4000   10000      .    7000         14.0    15.0
-    3   a  100000  110000      .  100000         30.0    30.0
-    4   a  200000  230000      .  214000        300.0   150.0
+    0   a     101     501      .     250         20.0    20.0
+    1   a    1001    3001      .    2000        100.0   100.0
+    2   a    4001   10001      .    7000         14.0    14.0
+    3   a  100000  110001      .  100000         30.0    30.0
+    4   a  200001  230001      .  215000        300.0   300.0
     """
-    # fusion of similar peaks
-    merged_peaks = collapse_peaks(
-        peaks=ref_peaks.copy(),
-        merge_function=merge_function,
-        score_col=score_col,
-        file_cols=file_cols
-    )
-    # inscrease peak size to ensure overlapp
-    peaks = expand_peaks(
-        peaks=peaks,
-        size=size
-    )
-    merged_peaks[merged_peaks.columns.difference(file_cols)] = np.NaN
-
-    def min_dist(merged_peak, peaks_list):
-        scores = peaks_list[
-            (merged_peak['peak'] >= peaks_list['start']) &
-            (merged_peak['peak'] <= peaks_list['stop']) &
-            (merged_peak['chr'] == peaks_list['chr'])
-        ].copy()
-        if scores.empty:
-            return np.NaN
-        else:
-            scores['dist'] = scores.apply(
-                func=lambda x: abs(x['peak'] - merged_peak['peak']),
-                axis=1
-            )
-
-            scores = scores.loc[scores['dist'].idxmin()]
-            return scores[score_col]
-    merged_peaks[score_col] = merged_peaks.apply(
-        func=lambda x: min_dist(
-            merged_peak=x,
-            peaks_list=peaks,
-        ),
-        axis=1
-    )
     return expand_peaks(
-        peaks=merged_peaks,
+        peaks=expand_peaks(
+            peaks=collapse_peaks(
+                peaks=ref_peaks.copy(),
+                merge_function=merge_function,
+                score_col=score_col,
+                file_cols=file_cols
+            ),
+            size=size
+        ).apply(
+            func=lambda x: overlapping_peaks(
+                ref_peak=x,
+                peaks=expand_peaks(
+                    peaks=peaks,
+                    size=size),
+                score_col=score_col
+            ),
+            axis=1
+        ),
         size=-size
     )
 
@@ -589,14 +608,14 @@ def merge_beds(bed_files: list,
     ... pos_cols=narrowpeaks_sort_cols()
     ... )
     [  chr   start    stop strand    peak  signalValue  qValue
-    0   a     100     500      .     260         20.0    20.0
-    2   a    4000   10000      .    7000         14.0    15.0
+    0   a     100     500      .     250         20.0    20.0
+    2   a    4000   10000      .    7000         14.0    14.0
     3   a  100000  110000      .  100000         30.0    30.0
-    4   a  200000  230000      .  214000        300.0   150.0,   chr   start    stop strand    peak  signalValue  qValue
-    0   a     100     500      .     260         21.0    20.0
+    4   a  200000  230000      .  215000        300.0   300.0,   chr   start    stop strand    peak  signalValue  qValue
+    0   a     100     500      .     250         21.0    21.0
     2   a    4000   10000      .    7000         15.0    15.0
-    3   a  100000  110000      .  100000         31.0    30.0
-    4   a  200000  230000      .  214000        301.0   150.0]
+    3   a  100000  110000      .  100000         31.0    31.0
+    4   a  200000  230000      .  215000        301.0   301.0]
     """
     merged_files = []
     nan_pos = []
