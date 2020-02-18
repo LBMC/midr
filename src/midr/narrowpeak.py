@@ -162,11 +162,18 @@ def writefiles(bed_files: list,
     :param outdir: output directory
     :return: nothing
     """
+
+    def move_peak(x):
+        x['peak'] -= x['start']
+        return x
     for bed, file_name in zip(bed_files, file_names[1:]):
         output_name = PurePath(outdir).joinpath(
             "idr_" + PurePath(str(file_name)).name
         )
-        bed.assign(idr=idr).to_csv(
+        bed.assign(idr=idr).apply(
+            func=move_peak,
+            axis=1
+        ).to_csv(
             output_name, sep='\t',
             encoding='utf-8',
             header=False,
