@@ -864,7 +864,8 @@ def polylog(z, s, is_log_z=False):
         w = z
         z = np.exp(w)
         return np.array(
-            np.log(c_arch.polyneval(eun, z)) + w - (n + 1.0) * log1mexp(-w),
+            np.log(c_arch.polyneval(eun.astype(np.float64), z.astype(
+                np.float64))) + w - (n + 1.0) * log1mexp(-w),
             dtype=np.float64
         )
     else:
