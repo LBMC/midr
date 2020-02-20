@@ -21,6 +21,8 @@ from scipy.special import logsumexp
 from scipy.stats import poisson
 from mpmath import polylog
 
+import midr.c_archimedean as c_arch
+
 
 def lsum(x_values, is_log=True, axis=0):
     """
@@ -839,7 +841,7 @@ def polyneval(coef, x):
     >>> polyneval(eulerian_all(10), np.array([-4, -3]))
     array([1.12058925e+08, 9.69548800e+06])
     """
-    return np.polyval(
+    return c_arch.polyval(
         p=np.tile(coef.reshape((-1, 1)), (1, len(x))),
         x=x
     )
@@ -862,12 +864,15 @@ def polylog(z, s, is_log_z=False):
         w = z
         z = np.exp(w)
         return np.array(
-            np.log(polyneval(eun, z)) + w - (n + 1.0) * log1mexp(-w),
+            np.log(c_arch.polyneval(eun, z)) + w - (n + 1.0) * log1mexp(-w),
             dtype=np.float64
         )
     else:
         return np.array(
-            np.log(polyneval(eun, z)) + np.log(z) - (n + 1.0) * np.log1p(-z),
+            np.log(c_arch.polyneval(eun.astype(np.float64), z.astype(
+                np.float64))) + np.log(z) -
+            (n + 1.0) *
+            np.log1p(-z),
             dtype=np.float64
         )
 

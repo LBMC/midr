@@ -2,6 +2,8 @@
 # -*-coding:Utf-8 -*
 
 import setuptools
+from Cython.Build import cythonize
+import numpy as np
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -34,5 +36,10 @@ version 2.1 (CeCILL-2.1)",
     tests_require=['pytest'],
     entry_points={
         'console_scripts': ['midr=midr.__main__:main'],
-    }
+    },
+    ext_modules=cythonize(
+        "midr/c_archimedean.pyx",
+        language_level=3,
+    ),
+    include_dirs=[np.get_include()]
 )
