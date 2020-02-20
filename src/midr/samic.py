@@ -302,7 +302,7 @@ def samic(x_score, threshold=1e-4, log_name=""):
     ...                      m_sample=4,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
-    >>> alpha, lidr = samic(DATA["X"], threshold=0.0001)
+    >>> lidr = samic(DATA["X"], threshold=0.0001)
     >>> np.sum((lidr < 0.5).all() == DATA["K"]) / len(lidr)
     """
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))

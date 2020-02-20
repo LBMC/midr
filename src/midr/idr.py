@@ -579,7 +579,7 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     ...                      m_sample=2,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
-    >>> (THETA_RES, lidr) = pseudo_likelihood(DATA["X"],
+    >>> lidr = pseudo_likelihood(DATA["X"],
     ...                                      threshold=0.0001)
     >>> np.sum((np.array(lidr) < 0.5).all() == DATA["K"]) / len(lidr)
     """
