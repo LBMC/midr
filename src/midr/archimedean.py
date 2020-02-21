@@ -144,6 +144,31 @@ def signff(alpha, j, d):
                     res[i] = (-1.0) ** (j[i] - np.ceil(x))
     return res
 
+def log1mexpunit(x):
+    """
+    compute log(1-exp(-a)
+    :param x:
+    :return:
+    """
+    if x <= np.log(2.0):
+        return np.log(-np.expm1(-x))
+    else:
+        return np.log1p(-np.exp(-x))
+
+
+def log1mexpvec(x):
+    """
+    compute log(1-exp(-a)
+    :param x:
+    :return:
+    """
+    res = np.empty_like(x)
+    eps = np.log(2.0)
+    test = x <= eps
+    res[test] = np.log(-np.expm1(-x[test]))
+    res[np.logical_not(test)] = np.log1p(-np.exp(-x[np.logical_not(test)]))
+    return res
+
 
 def log1mexp(x):
     """
@@ -152,16 +177,8 @@ def log1mexp(x):
     :return:
     """
     if hasattr(x, "__len__"):
-        res = np.empty_like(x)
-        eps = np.log(2.0)
-        test = x <= np.log(eps)
-        res[test] = np.log(-np.expm1(-x[test]))
-        res[np.logical_not(test)] = np.log1p(-np.exp(-x[np.logical_not(test)]))
-        return res
-    if x <= np.log(2.0):
-        return np.log(-np.expm1(-x))
-    else:
-        return np.log1p(-np.exp(-x))
+        return log1mexpvec(x)
+    return log1mexpunit(x)
 
 
 def log1pexp(x):
@@ -841,7 +858,7 @@ def polyneval(coef, x):
     >>> polyneval(eulerian_all(10), np.array([-4, -3]))
     array([1.12058925e+08, 9.69548800e+06])
     """
-    return c_arch.polyval(
+    return np.polyval(
         p=np.tile(coef.reshape((-1, 1)), (1, len(x))),
         x=x
     )
@@ -926,7 +943,7 @@ def pdf_frank(u_values, theta, is_log=False):
         lpu = log1mexp(theta * u_values)
         lu = np.sum(lpu, axis=1)
         liarg = -np.expm1(-theta) * np.exp(np.sum(lpu - lp, axis=1))
-        li = polylog(
+        li = c_arch.polylog(
             liarg,
             -(d - 1.0)
         )
