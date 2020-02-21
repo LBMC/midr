@@ -18,7 +18,8 @@ setuptools.setup(
         'pynverse>=0.1',
         'pandas>=0.25.0',
         'matplotlib>=3.1.0',
-        'mpmath>=1.1.0'
+        'mpmath>=1.1.0',
+        'cython>=0.28.0'
     ],
     author="Laurent Modolo",
     author_email="laurent.modolo@ens-lyon.fr",
@@ -39,7 +40,7 @@ version 2.1 (CeCILL-2.1)",
     },
     ext_modules=cythonize(
         "midr/c_archimedean.pyx",
-        language_level=3,
+        language_level=3
     ),
     include_dirs=[np.get_include()]
 )
