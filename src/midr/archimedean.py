@@ -177,7 +177,14 @@ def log1mexp(x):
     :return:
     """
     if hasattr(x, "__len__"):
-        return log1mexpvec(x)
+        if len(x.shape) == 0:
+            return c_arch.log1mexpvec(x)
+        else:
+            return np.apply_along_axis(
+                c_arch.log1mexpvec,
+                axis=1,
+                arr=x
+            )
     return log1mexpunit(x)
 
 
