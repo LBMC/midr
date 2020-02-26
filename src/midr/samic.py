@@ -14,7 +14,7 @@ NarrowPeaks files.
 """
 
 from sys import float_info
-from scipy.optimize import minimize
+from scipy.optimize import minimize, Bounds
 import numpy as np
 import midr.log as log
 import midr.archimedean as archimedean
@@ -91,7 +91,7 @@ def expectation_l(u_values, copula_list, params_list):
     return l_state
 
 
-def density_mix(u_values, copula, theta):
+def density_mix(theta, u_values, copula):
     """
     pdf of the samic mixture for a given copula
     :param u_values:
@@ -104,7 +104,6 @@ def density_mix(u_values, copula, theta):
         'frank': archimedean.pdf_frank,
         'gumbel': archimedean.pdf_gumbel
     }
-    print(copula + " " + str(theta))
     return -np.sum(
         copula_density[copula](
             u_values,
@@ -188,7 +187,7 @@ def minimize_alpha(l_state):
     return alpha
 
 
-def build_bounds(copula, eps=float_info.min):
+def build_bounds(copula, eps=1e-8):
     """
     return set of bound for a given copula
     :param copula:
@@ -209,7 +208,9 @@ def build_bounds(copula, eps=float_info.min):
             'theta_max': 100
         }
     }
-    return thetas[copula]['theta_min'] + eps, thetas[copula]['theta_min'] - eps
+    return [
+        (thetas[copula]['theta_min'] + eps, thetas[copula]['theta_max'] - eps)
+    ]
 
 
 def minimize_theta(u_values, copula, params_list):
@@ -221,17 +222,15 @@ def minimize_theta(u_values, copula, params_list):
     :return:
     """
     old_theta = params_list[copula]['theta']
-    print(copula + " minimize theta from : " + str(old_theta))
     res = minimize(
-        fun=lambda x: density_mix(
-            u_values=u_values,
-            copula=copula,
-            theta=x
-        ),
+        fun=density_mix,
+        args=(u_values, copula),
         x0=old_theta,
-        bounds=[build_bounds(copula)],
-        options={'maxiter': 1000}
+        bounds=build_bounds(copula)
     )
+    print(copula)
+    print(build_bounds(copula))
+    print(res)
     if np.isnan(res.x):
         return old_theta
     else:
@@ -260,7 +259,7 @@ def samic(x_score, threshold=1e-4, log_name=""):
     copula_list = ["clayton", "frank", "gumbel"]
     dmle_copula = {
         'clayton': archimedean.dmle_copula_clayton,
-        'frank': lambda x: 3.0,  # since the dmle for frank is slow...
+        'frank': lambda x: 0.0,  # since the dmle for frank is slow...
         'gumbel': archimedean.dmle_copula_gumbel
     }
     params_list = dict()
