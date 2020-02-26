@@ -364,7 +364,7 @@ def local_idr(z_values, theta):
                       )
     h1_x *= float(theta['pi'])
     lidr = h0_x / (h1_x + h0_x)
-    return lidr.to_list()
+    return np.array(lidr)
 
 
 def m_step_pi(k_state, threshold):
@@ -627,18 +627,17 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
             logl=logl_t1,
             pseudo=True
         )
-        log.logging.info("%s", log_idr(theta_t1, logger))
+        log.logging.info("%s", log_idr(theta_t1))
     return local_idr(
         z_values=z_values,
         theta=theta_t1
     )
 
 
-def log_idr(theta, logger):
+def log_idr(theta):
     """
     return str of pseudo_likelihood parameter estimate
     :param theta:
-    :param logger:
     :return:
     """
     return str('{' +
