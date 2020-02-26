@@ -104,6 +104,7 @@ def density_mix(u_values, copula, theta):
         'frank': archimedean.pdf_frank,
         'gumbel': archimedean.pdf_gumbel
     }
+    print(copula + " " + str(theta))
     return -np.sum(
         copula_density[copula](
             u_values,
@@ -187,78 +188,28 @@ def minimize_alpha(l_state):
     return alpha
 
 
-def constraint(x, theta_min=np.nan, theta_max=np.nan, return_min=True,
-               eps=float_info.min):
+def build_bounds(copula, eps=float_info.min):
     """
-    compute contraint for theta ineq
-    :param x:
-    :param theta_min:
-    :param theta_max:
-    :param return_min
-    :param eps:
-    :return:
-    """
-    interval = [x - (theta_min + eps), (theta_max - eps) - x]
-    if interval[0] > interval[1]:
-        interval[1] = interval[0] + 1.0
-    if return_min:
-        return interval[0]
-    else:
-        return interval[1]
-
-
-def build_constraint(copula, old_theta=np.nan, eps=1.0):
-    """
-    write consts for a given copula
+    return set of bound for a given copula
     :param copula:
-    :param old_theta:
-    :param eps
+    :param eps:
     :return:
     """
     thetas = {
         'clayton': {
-            'theta_min': max([0.0, old_theta - eps]),
-            'theta_max': min([1000.0, old_theta + eps])
+            'theta_min': 0.0,
+            'theta_max': 1000.0
         },
         'frank': {
-            'theta_min': max([0.0, old_theta - eps]),
-            'theta_max': min([745.0, old_theta + eps])
+            'theta_min': 0.0,
+            'theta_max': 745.0
         },
         'gumbel': {
-            'theta_min': max([1.0 + float_info.min, old_theta - eps]),
-            'theta_max': min([100.0, old_theta + eps])
+            'theta_min': 1.0,
+            'theta_max': 100
         }
     }
-
-    def consts_min(x):
-        """
-        Return minimum for the range
-        :param x:
-        :return:
-        """
-        return constraint(
-            x=x,
-            theta_min=thetas[copula]['theta_min'],
-            theta_max=thetas[copula]['theta_max'],
-        )
-
-    def consts_max(x):
-        """
-        Return maximum for the range
-        :param x:
-        :return:
-        """
-        return constraint(
-            x=x,
-            theta_min=thetas[copula]['theta_min'],
-            theta_max=thetas[copula]['theta_max'],
-            return_min=False
-        )
-
-    return [
-        {'type': 'ineq', 'fun': consts_min},
-        {'type': 'ineq', 'fun': consts_max}
-    ]
+    return thetas[copula]['theta_min'] + eps, thetas[copula]['theta_min'] - eps
 
 
 def minimize_theta(u_values, copula, params_list):
@@ -270,7 +221,7 @@ def minimize_theta(u_values, copula, params_list):
     :return:
     """
     old_theta = params_list[copula]['theta']
-    constraints = build_constraint(copula, old_theta=old_theta)
+    print(copula + " minimize theta from : " + str(old_theta))
     res = minimize(
         fun=lambda x: density_mix(
             u_values=u_values,
@@ -278,7 +229,7 @@ def minimize_theta(u_values, copula, params_list):
             theta=x
         ),
         x0=old_theta,
-        constraints=constraints,
+        bounds=[build_bounds(copula)],
         options={'maxiter': 1000}
     )
     if np.isnan(res.x):
