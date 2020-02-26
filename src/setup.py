@@ -35,7 +35,6 @@ setuptools.setup(
         'numpy>=1.16',
         'pynverse>=0.1',
         'pandas>=0.25.0',
-        'matplotlib>=3.1.0',
         'mpmath>=1.1.0',
         'cython>=0.28.0'
     ],
