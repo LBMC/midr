@@ -72,7 +72,7 @@ def parse_args(args):
     arg.add_argument("--merge_function", "-mf", metavar="MERGE_FUNCTION",
                      dest='merge_function',
                      required=False,
-                     default='sum',
+                     default='max',
                      type=str,
                      help="function to determine the score to keep for \
                      overlapping peak ('sum', 'max', 'mean', 'median', 'min')")
