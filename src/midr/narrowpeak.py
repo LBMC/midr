@@ -645,7 +645,7 @@ def merge_beds(bed_files: list,
     for bed in bed_files[1:]:
         i += 1
         log.logging.info("%s", "merging " + str(i) + "/" + str(len(
-            bed_files)))
+            bed_files)-1))
         merged_files.append(
             merge_peaks(
                 ref_peaks=merged_files[0],

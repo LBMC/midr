@@ -634,11 +634,10 @@ def log_idr(theta, logger):
     :return:
     """
     return str('{' +
-            '"theta": ' + str(theta) + ', ' +
-            '"pi": ' + str(logger['pi']) + ', ' +
-            '"mu": ' + str(logger['mu']) + ', ' +
-            '"sigma": ' + str(logger['sigma']) + ', ' +
-            '"rho": ' + str(logger['rho']) +
+            '"pi": ' + str(theta['pi']) + ', ' +
+            '"mu": ' + str(theta['mu']) + ', ' +
+            '"sigma": ' + str(theta['sigma']) + ', ' +
+            '"rho": ' + str(theta['rho']) +
             '}')
 
 
