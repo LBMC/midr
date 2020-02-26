@@ -1170,12 +1170,13 @@ def log_polyg(lx_var, alpha_var, d_var):
     llx = np.dot(k.reshape(-1, 1), lx_var.reshape(1, -1))
     labspoch = np.zeros(shape=int(d_var))
     for i in range(int(d_var)):
-        labspoch[i] = np.sum(
-            np.log(
-                abs(alpha_var * float(i + 1) - (k - 1.0))
-            ),
-            axis=0
-        )
+        with np.errstate(divide='ignore'):
+            labspoch[i] = np.sum(
+                np.log(
+                    abs(alpha_var * float(i + 1) - (k - 1.0))
+                ),
+                axis=0
+            )
     lfac = np.log(factorial(k))
     lxabs = llx + lppois + np.tile(
         labspoch - lfac, int(lx_var.shape[0])
