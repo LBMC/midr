@@ -68,21 +68,24 @@ def parse_args(args):
                      required=False,
                      default=0.0001,
                      type=float,
-                     help="Threshold value for the precision of the estimator")
+                     help="Threshold value for the precision of the estimators")
     arg.add_argument("--merge_function", "-mf", metavar="MERGE_FUNCTION",
                      dest='merge_function',
                      required=False,
                      default='max',
                      type=str,
                      help="function to determine the score to keep for \
-                     overlapping peak ('sum', 'max', 'mean', 'median', 'min')")
+                     overlapping peak within a replica ('sum', 'max', "
+                          "'mean', \
+                    'median', 'min')")
     arg.add_argument("--size", "-ws", metavar="SIZE_MERGE",
                      dest='size_merge',
                      required=False,
                      default=100,
                      type=int,
-                     help="distance to add before and after each peak before "
-                          "merging")
+                     help="distance to add before and after each peak before \
+                     merging finding match between --merged file and --files \
+                     files")
     arg.add_argument("--method", "-mt", metavar="METHOD",
                      dest='method',
                      required=False,
