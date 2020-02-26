@@ -367,11 +367,18 @@ def local_idr(z_values, theta):
     return lidr.to_list()
 
 
-def m_step_pi(k_state):
+def m_step_pi(k_state, threshold):
     """
     compute maximization of pi
     """
-    return float(sum(k_state)) / float(len(k_state))
+    pi = float(sum(k_state)) / float(len(k_state))
+    if 1.0 - pi <= threshold:
+        log.logging.warning(
+            "%s",
+            "warning: pi maximization, empty reproducible group"
+        )
+        return 1.0 - threshold
+    return pi
 
 
 def m_step_alpha(l_state):
@@ -523,7 +530,8 @@ def em_pseudo_data(z_values,
             theta=theta_t1
         )
         theta_t1['pi'] = m_step_pi(
-            k_state=k_state
+            k_state=k_state,
+            threshold=threshold
         )
         theta_t1['mu'] = m_step_mu(
             z_values=z_values,

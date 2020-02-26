@@ -68,8 +68,8 @@ boley_data %>% select(
     col_names = F
   )
 
-system("midr -m data/boley_merge.NarrowPeak -f data/boley_r1.NarrowPeak data/boley_r2.NarrowPeak -o results_archimedean")
-system("midr -m data/boley_merge.NarrowPeak -f data/boley_r1.NarrowPeak data/boley_r2.NarrowPeak -o results_gaussian -mt gaussian")
+system("midr -m data/boley_merge.NarrowPeak -f data/boley_r1.NarrowPeak data/boley_r2.NarrowPeak -mf max -o results_archimedean -v")
+system("midr -m data/boley_merge.NarrowPeak -f data/boley_r1.NarrowPeak data/boley_r2.NarrowPeak -mf max -o results_gaussian -mt gaussian -v")
 
 samic_data <- read_tsv("results_archimedean/idr_boley_r1.NarrowPeak",
                        col_names = colnames_midr) %>%
@@ -109,7 +109,7 @@ boley_data %>%
               mutate(method = "gaussian")) %>% 
   mutate(rank = order(signalValue)) %>% 
   ggplot() +
-  geom_point(aes(x = l2fc, y = midr, color = signalValue)) +
+  geom_point(aes(x = l2fc, y = midr, color = log(signalValue))) +
   facet_wrap(~method) +
   theme_bw()
 ggsave("boley_vs_gaussian_vs_samic.pdf")
