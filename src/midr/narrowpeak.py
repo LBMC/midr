@@ -662,11 +662,14 @@ def merge_beds(bed_files: list,
             ].to_numpy()
         )
     nan_pos = set(nan_pos)
+    log.logging.info("%s", str(len(nan_pos)) + " peaks unmached")
     for merged in range(len(merged_files)):
         merged_files[merged] = expand_peaks(
             merged_files[merged].drop(nan_pos),
             size=-size
         )
+    log.logging.info("%s", "working with " +
+                     str(merged_files[0].shape[0]) + " peaks")
     return merged_files
 
 
