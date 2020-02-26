@@ -164,9 +164,10 @@ def log1mexpvec(x):
     """
     res = np.empty_like(x)
     eps = np.log(2.0)
-    test = x <= eps
-    res[test] = np.log(-np.expm1(-x[test]))
-    res[np.logical_not(test)] = np.log1p(-np.exp(-x[np.logical_not(test)]))
+    with np.errstate(invalid='ignore'):
+        test = x <= eps
+        res[test] = np.log(-np.expm1(-x[test]))
+        res[np.logical_not(test)] = np.log1p(-np.exp(-x[np.logical_not(test)]))
     return res
 
 
@@ -268,7 +269,7 @@ def dmle_copula_clayton(u_values):
         diag_pdf=diag_pdf_clayton,
         init=0.5,
         constraint=[{'type': 'ineq', 'fun': lambda x: float_info.min},
-                    {'type': 'ineq', 'fun': lambda x: 1000 - x}]
+                    {'type': 'ineq', 'fun': lambda x: 1000.0 - x}]
     )
 
 
@@ -297,7 +298,7 @@ def dmle_copula_frank(u_values):
         diag_pdf=diag_pdf_frank,
         init=0.5,
         constraint=[{'type': 'ineq', 'fun': lambda x: x - float_info.min},
-                    {'type': 'ineq', 'fun': lambda x: 745 - x}]
+                    {'type': 'ineq', 'fun': lambda x: 745.0 - x}]
     )
 
 
@@ -546,8 +547,9 @@ def dmle_copula_gumbel(u_values):
         u_values=u_values,
         diag_pdf=diag_pdf_gumbel,
         init=1.5,
-        constraint=[{'type': 'ineq', 'fun': lambda x: x - (1 + float_info.min)},
-                    {'type': 'ineq', 'fun': lambda x: 100 - x}]
+        constraint=[{'type': 'ineq', 'fun': lambda x: x - (1.0 +
+                                                           float_info.min)},
+                    {'type': 'ineq', 'fun': lambda x: 100.0 - x}]
     )
 
 
@@ -934,6 +936,7 @@ def pdf_frank(u_values, theta, is_log=False):
     array([-0.05344249,  0.07193155, -0.09301939, -0.01950997, -0.00858989,
            -0.00607522, -0.06014914, -0.03120961,  0.02245848, -0.01418388])
     """
+    assert not np.isnan(theta), "pdf_frank: theta is nan"
     if theta == 0.0:
         copula = np.zeros(shape=u_values.shape[0])
     else:
@@ -943,10 +946,11 @@ def pdf_frank(u_values, theta, is_log=False):
         lpu = log1mexp(theta * u_values)
         lu = np.sum(lpu, axis=1)
         liarg = -np.expm1(-theta) * np.exp(np.sum(lpu - lp, axis=1))
-        li = c_arch.polylog(
-            liarg,
-            -(d - 1.0)
-        )
+        with np.errstate(divide='ignore'):
+            li = c_arch.polylog(
+                liarg,
+                -(d - 1.0)
+            )
         copula = (d - 1.0) * np.log(theta) + li - theta * usum - lu
     if is_log:
         return copula
@@ -1246,8 +1250,10 @@ def pdf_gumbel(u_values, theta, is_log=False):
     lip = ipsi_gumbel(u_values, theta, is_log=True)
     lnt = lsum(np.transpose(lip))
     alpha = 1.0 / theta
-    assert 0.0 < alpha, "alpha value:" + str(alpha) + " theta: " + str(theta)
-    assert alpha <= 1.0, "alpha value:" + str(alpha) + " theta: " + str(theta)
+    assert 0.0 < alpha, "0.0 < alpha: alpha = " + str(alpha) + \
+                        ", theta = " + str(theta)
+    assert alpha <= 1.0, "alpha <= 1.0: alpha = " + str(alpha) + \
+                         " theta = " + str(theta)
     lx = alpha * lnt
     ls = log_polyg(lx, alpha, d) - d * lx / alpha
     lnc = -np.exp(lx)
