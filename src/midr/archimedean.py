@@ -543,14 +543,16 @@ def dmle_copula_gumbel(u_values):
     ...    ]))
     1.1658220337182064
     """
-    return max_diag_pdf(
-        u_values=u_values,
-        diag_pdf=diag_pdf_gumbel,
-        init=1.5,
-        constraint=[{'type': 'ineq', 'fun': lambda x: x - (1.0 +
-                                                           float_info.min)},
-                    {'type': 'ineq', 'fun': lambda x: 100.0 - x}]
-    )
+    return min([1.0 + float_info.min,
+                max_diag_pdf(
+                    u_values=u_values,
+                    diag_pdf=diag_pdf_gumbel,
+                    init=1.5,
+                    constraint=[{'type': 'ineq',
+                                 'fun': lambda x: x - (1.0 + float_info.min)},
+                                {'type': 'ineq',
+                                 'fun': lambda x: 100.0 - x}]
+                )])
 
 
 def ipsi_frank(u_values, theta, is_log=False):

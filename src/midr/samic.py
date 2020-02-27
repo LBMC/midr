@@ -187,6 +187,79 @@ def minimize_alpha(l_state):
     return alpha
 
 
+def constraint(x, theta_min=np.nan, theta_max=np.nan, return_min=True,
+               eps=float_info.min):
+    """
+    compute contraint for theta ineq
+    :param x:
+    :param theta_min:
+    :param theta_max:
+    :param return_min
+    :param eps:
+    :return:
+    """
+    interval = [x - (theta_min + eps), (theta_max - eps) - x]
+    if interval[0] > interval[1]:
+        interval[1] = interval[0] + 1.0
+    if return_min:
+        return interval[0]
+    else:
+        return interval[1]
+
+
+def build_constraint(copula, old_theta=np.nan, eps=1.0):
+    """
+    write consts for a given copula
+    :param copula:
+    :param old_theta:
+    :param eps
+    :return:
+    """
+    thetas = {
+        'clayton': {
+            'theta_min': 0.0,
+            'theta_max': 1000.0
+        },
+        'frank': {
+            'theta_min': 0.0,
+            'theta_max': 745.0
+        },
+        'gumbel': {
+            'theta_min': 1.0,
+            'theta_max': 100.0
+        }
+    }
+
+    def consts_min(x):
+        """
+        Return minimum for the range
+        :param x:
+        :return:
+        """
+        return constraint(
+            x=x,
+            theta_min=thetas[copula]['theta_min'],
+            theta_max=thetas[copula]['theta_max'],
+        )
+
+    def consts_max(x):
+        """
+        Return maximum for the range
+        :param x:
+        :return:
+        """
+        return constraint(
+            x=x,
+            theta_min=thetas[copula]['theta_min'],
+            theta_max=thetas[copula]['theta_max'],
+            return_min=False
+        )
+
+    return [
+        {'type': 'ineq', 'fun': consts_min},
+        {'type': 'ineq', 'fun': consts_max}
+    ]
+
 def build_bounds(copula, eps=1e-8):
     """
     return set of bound for a given copula
@@ -226,11 +299,8 @@ def minimize_theta(u_values, copula, params_list):
         fun=density_mix,
         args=(u_values, copula),
         x0=old_theta,
-        bounds=build_bounds(copula)
+        constraints=build_constraint(copula)
     )
-    print(copula)
-    print(build_bounds(copula))
-    print(res)
     if np.isnan(res.x):
         return old_theta
     else:
@@ -259,7 +329,7 @@ def samic(x_score, threshold=1e-4, log_name=""):
     copula_list = ["clayton", "frank", "gumbel"]
     dmle_copula = {
         'clayton': archimedean.dmle_copula_clayton,
-        'frank': lambda x: 0.0,  # since the dmle for frank is slow...
+        'frank': lambda x: 5,  # since the dmle for frank is slow...
         'gumbel': archimedean.dmle_copula_gumbel
     }
     params_list = dict()
