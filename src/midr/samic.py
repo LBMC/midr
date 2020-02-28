@@ -294,13 +294,16 @@ def minimize_theta(u_values, copula, params_list):
     :param params_list:
     :return:
     """
+    log.logging.debug("%s", copula + " minimize_theta")
     old_theta = params_list[copula]['theta']
     res = minimize(
         fun=density_mix,
         args=(u_values, copula),
         x0=old_theta,
-        constraints=build_constraint(copula)
+        constraints=build_constraint(copula),
+        method="L-BFGS-B"
     )
+    log.logging.debug("%s", res)
     if np.isnan(res.x):
         return old_theta
     else:
