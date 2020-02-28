@@ -26,18 +26,21 @@ def add_log(log, theta, logl, pseudo):
 def setup_logging(options):
     """Configure logging."""
     root = logging.getLogger(__name__)
-    root.setLevel(logging.INFO)
+    debug_level = logging.INFO
+    if options.debug:
+        debug_level = logging.DEBUG
+    root.setLevel(debug_level)
     file_handler = logging.FileHandler(options.output + "/log.txt")
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(debug_level)
     root.addHandler(file_handler)
     handler_list = [file_handler]
     if options.verbose:
         console = logging.StreamHandler()
-        console.setLevel(logging.INFO)
+        console.setLevel(debug_level)
         root.addHandler(console)
         handler_list.append(console)
     logging.basicConfig(
-        level=logging.INFO,
+        level=debug_level,
         format="%(asctime)s: %(message)s", datefmt='%H:%M:%S',
         handlers=handler_list
     )
