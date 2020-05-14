@@ -63,7 +63,8 @@ def readbed(bed_path: PurePath,
         bed_path,
         sep='\t',
         header=None,
-        names=bed_cols
+        names=bed_cols,
+        low_memory=False
     ).apply(
         func=move_peak,
         axis=1
