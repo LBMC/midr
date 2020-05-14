@@ -217,13 +217,14 @@ def diag_copula(u_values):
     return y
 
 
-def max_diag_pdf(u_values, diag_pdf, init, constraint):
+def max_diag_pdf(u_values, diag_pdf, init, constraint, bounds):
     """
     find theta using dmle from diagonal pdf
     :param u_values:
     :param diag_pdf:
     :param init:
     :param constraint:
+    :param bounds:
     :return:
     """
 
@@ -239,7 +240,8 @@ def max_diag_pdf(u_values, diag_pdf, init, constraint):
     res = minimize(
         fun=lambda x: log_ddelta(x, u_values),
         x0=np.array(init),
-        constraints=constraint
+        bounds=[bounds],
+        method="SLSQP"
     )
     return res.x[0]
 
@@ -269,7 +271,8 @@ def dmle_copula_clayton(u_values):
         diag_pdf=diag_pdf_clayton,
         init=0.5,
         constraint=[{'type': 'ineq', 'fun': lambda x: float_info.min},
-                    {'type': 'ineq', 'fun': lambda x: 1000.0 - x}]
+                    {'type': 'ineq', 'fun': lambda x: 1000.0 - x}],
+        bounds=(float_info.min, 1000.0)
     )
 
 
@@ -298,7 +301,8 @@ def dmle_copula_frank(u_values):
         diag_pdf=diag_pdf_frank,
         init=0.5,
         constraint=[{'type': 'ineq', 'fun': lambda x: x - float_info.min},
-                    {'type': 'ineq', 'fun': lambda x: 745.0 - x}]
+                    {'type': 'ineq', 'fun': lambda x: 745.0 - x}],
+        bounds=(float_info.min, 745.0)
     )
 
 
@@ -551,7 +555,8 @@ def dmle_copula_gumbel(u_values):
                     constraint=[{'type': 'ineq',
                                  'fun': lambda x: x - (1.0 + float_info.min)},
                                 {'type': 'ineq',
-                                 'fun': lambda x: 100.0 - x}]
+                                 'fun': lambda x: 100.0 - x}],
+                    bounds=(1.0 + float_info.min, 100.0)
                 )])
 
 
@@ -952,8 +957,8 @@ def pdf_frank(u_values, theta, is_log=False):
             li = c_arch.polylog(
                 liarg,
                 -(d - 1.0)
-            )
-        copula = (d - 1.0) * np.log(theta) + li - theta * usum - lu
+            ) + 1.0
+        copula = (d - 1.0) * np.log(theta) + li - theta * usum - lu - 1.0
     if is_log:
         return copula
     return np.exp(copula)
