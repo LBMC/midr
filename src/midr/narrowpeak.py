@@ -735,26 +735,29 @@ def process_bed(file_names: list,
         score_cols=score_cols,
         pos_cols=pos_cols,
     )
-    log.logging.info("%s", "computing idr")
-    local_idr = idr_func(
-        narrowpeaks2array(
-            np_list=bed_files[1:],
-            score_cols=score_cols
-        ),
-        threshold=threshold,
-        log_name=str(
-            PurePath(outdir).joinpath(
-                "idr_" + str(PurePath(str(file_names[0])).name)
+    if bed_files[0].shape[0] > 0:
+        log.logging.info("%s", "computing idr")
+        local_idr = idr_func(
+            narrowpeaks2array(
+                np_list=bed_files[1:],
+                score_cols=score_cols
+            ),
+            threshold=threshold,
+            log_name=str(
+                PurePath(outdir).joinpath(
+                    "idr_" + str(PurePath(str(file_names[0])).name)
+                )
             )
         )
-    )
-    log.logging.info("%s", "writing results")
-    writefiles(
-        bed_files=bed_files,
-        file_names=file_names,
-        lidr=local_idr,
-        outdir=outdir
-    )
+        log.logging.info("%s", "writing results")
+        writefiles(
+            bed_files=bed_files,
+            file_names=file_names,
+            lidr=local_idr,
+            outdir=outdir
+        )
+    else:
+        log.logging.info("%s", "terminating")
 
 
 if __name__ == "__main__":
