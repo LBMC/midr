@@ -22,6 +22,8 @@ def eulerian(np.int n, np.int m):
     :param m:
     :return:
     """
+    cdef int i
+    cdef int j
     dp = np.full((n + 1, m + 1), 0)
     # For each row from 1 to n
     for i in range(1, n + 1):
