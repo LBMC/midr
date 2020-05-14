@@ -83,9 +83,16 @@ def parse_args(args):
                      required=False,
                      default=100,
                      type=int,
-                     help="distance to add before and after each peak before \
+                     help="distance (bp) to add before and after each peak "
+                          "before \
                      merging finding match between --merged file and --files \
                      files")
+    arg.add_argument("--nodrop", "-nd", action="store_false",
+                     dest="drop_unmatched",
+                     required=False,
+                     default=True,
+                     help="don't drop peak unmatched in any bed. The score of \
+                     the absent peak is set to 0.0")
     arg.add_argument("--method", "-mt", metavar="METHOD",
                      dest='method',
                      required=False,
@@ -140,7 +147,8 @@ def main(options=parse_args(args=sys.argv[1:])):
                 score_cols=options.score,
                 threshold=options.threshold,
                 file_cols=narrowpeak.narrowpeaks_cols(),
-                pos_cols=narrowpeak.narrowpeaks_sort_cols()
+                pos_cols=narrowpeak.narrowpeaks_sort_cols(),
+                drop_unmatched=options.drop_unmatched
             )
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")

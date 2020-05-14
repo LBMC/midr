@@ -143,8 +143,7 @@ def compute_empirical_marginal_cdf(rank):
     m_sample = float(rank.shape[1])
     # scaling_factor = n_value / (n_value + 1.0)
     # we want a max value of 0.99
-    scaling_factor = n_value / 0.99 - n_value
-    scaling_factor = n_value / (n_value + scaling_factor)
+    scaling_factor = 0.99
     for i in range(int(n_value)):
         for j in range(int(m_sample)):
             x_score[i][j] = (1.0 - (float(rank[i][j] - 1) / n_value)) * \

@@ -127,9 +127,11 @@ def readfiles(file_names: list,
               merge_function=sum,
               file_cols: list = None,
               score_cols: str = None,
-              pos_cols: list = None) -> list:
+              pos_cols: list = None,
+              drop_unmatched: bool = True) -> list:
     """
     Reads a list of bed filenames and return a list of pd.DataFrame
+    :type drop_unmatched: bool
     :rtype: list[pd.DataFrame]
     :param file_names: list of bed files to read
     :param size: int expand peaks of size size
@@ -138,6 +140,7 @@ def readfiles(file_names: list,
     :param file_cols: list of bed file columns
     :param score_cols: column name of the score to use
     :param pos_cols: list of position column name to sort and merge on
+    :param drop_unmatched: bool
     :return: list[pd.DataFrame] containing the file csv columns
     """
     bed_paths = list()
@@ -153,7 +156,8 @@ def readfiles(file_names: list,
         merge_function=merge_function,
         score_col=score_cols,
         pos_cols=pos_cols,
-        file_cols=file_cols
+        file_cols=file_cols,
+        drop_unmatched=drop_unmatched
     )
 
 
@@ -566,7 +570,8 @@ def merge_beds(bed_files: list,
                size=100,
                file_cols: list = None,
                score_col: str = None,
-               pos_cols: list = None) -> list:
+               pos_cols: list = None,
+               drop_unmatched: bool = True) -> list:
     """
     Merge a list of bed according to position in a reference in the list
     :param file_cols:
@@ -576,17 +581,18 @@ def merge_beds(bed_files: list,
     :param size: int expand peaks of size size
     :param score_col: str with the name of the score column
     :param pos_cols: list list of columns name for position information
+    :param drop_unmatched: bool
     :return: a list of bed files (pd.DataFrame)
     >>> merge_beds(
     ... bed_files=[
     ... pd.DataFrame({
-    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a'],
-    ... 'start': [100, 100, 1000, 4000, 100000, 200000, 200000],
-    ... 'stop': [500, 500, 3000, 10000, 110000, 230000, 230000],
-    ... 'strand': [".", ".", ".", ".", ".", ".", "."],
-    ... 'peak': [250, 270, 2000, 7000, 100000, 213000, 215000],
-    ... 'signalValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0],
-    ... 'qValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0]}),
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 100000, 200000, 200000, 250000],
+    ... 'stop': [500, 500, 3000, 10000, 110000, 230000, 230000, 260000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 270, 2000, 7000, 100000, 213000, 215000, 255000],
+    ... 'signalValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0, 300.0],
+    ... 'qValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0, 300.0]}),
     ... pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
     ... 'start': [100, 100, 4000, 4000, 4000, 100000, 200000, 200000,
@@ -601,18 +607,18 @@ def merge_beds(bed_files: list,
     ... 'qValue': [20.0, 15.0, 15.0, 30.0, 14.0, 30.0, 200.0, 300.0,
     ... 400.0]}),
     ... pd.DataFrame({
-    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
     ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
-    ... 200000],
+    ... 200000, 250000],
     ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
-    ... 230000],
-    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 230000, 260000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
     ... 'peak': [250, 280, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
-    ... 220000],
+    ... 220000, 255000],
     ... 'signalValue': [21.0, 16.0, 101.0, 16.0, 31.0, 15.0, 31.0, 201.0,
-    ... 301.0, 401.0],
+    ... 301.0, 401.0, 302.0],
     ... 'qValue': [21.0, 16.0, 101.0, 16.0, 31.0, 15.0, 31.0, 201.0,
-    ... 301.0, 401.0]}),
+    ... 301.0, 401.0, 302.0]}),
     ... ],
     ... score_col=narrowpeaks_score(),
     ... file_cols=narrowpeaks_cols(),
@@ -631,6 +637,70 @@ def merge_beds(bed_files: list,
     2   a    4000   10000      .    7000         15.0    15.0
     3   a  100000  110000      .  100000         31.0    31.0
     4   a  200000  230000      .  215000        301.0   301.0]
+    >>> merge_beds(
+    ... bed_files=[
+    ... pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 100000, 200000, 200000, 250000, 350000],
+    ... 'stop': [500, 500, 3000, 10000, 110000, 230000, 230000, 260000, 360000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 270, 2000, 7000, 100000, 213000, 215000, 255000, 355000],
+    ... 'signalValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0, 300.0, 300.0],
+    ... 'qValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0, 300.0, 300.0]}),
+    ... pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000],
+    ... 'stop': [500, 500, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 280, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000],
+    ... 'signalValue': [20.0, 15.0, 15.0, 30.0, 14.0, 30.0, 200.0, 300.0,
+    ... 400.0],
+    ... 'qValue': [20.0, 15.0, 15.0, 30.0, 14.0, 30.0, 200.0, 300.0,
+    ... 400.0]}),
+    ... pd.DataFrame({
+    ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
+    ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
+    ... 200000, 250000, 350000],
+    ... 'stop': [500, 500, 3000, 10000, 10000, 10000, 110000, 230000, 230000,
+    ... 230000, 260000, 360000],
+    ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", ".", ".", ".", "."],
+    ... 'peak': [250, 280, 2000, 5000, 6000, 7000, 100000, 205000, 215000,
+    ... 220000, 255000, 355000],
+    ... 'signalValue': [21.0, 16.0, 101.0, 16.0, 31.0, 15.0, 31.0, 201.0,
+    ... 301.0, 401.0, 302.0, 302.0],
+    ... 'qValue': [21.0, 16.0, 101.0, 16.0, 31.0, 15.0, 31.0, 201.0,
+    ... 301.0, 401.0, 302.0, 302.0]}),
+    ... ],
+    ... score_col=narrowpeaks_score(),
+    ... file_cols=narrowpeaks_cols(),
+    ... pos_cols=narrowpeaks_sort_cols(),
+    ... drop_unmatched=False
+    ... )
+    [  chr   start    stop strand    peak  signalValue  qValue
+    0   a     100     500      .     260         50.0    20.0
+    1   a    1000    3000      .    2000        100.0   100.0
+    2   a    4000   10000      .    7000         15.0    15.0
+    3   a  100000  110000      .  100000         30.0    30.0
+    4   a  200000  230000      .  214000        350.0   150.0
+    5   a  250000  260000      .  255000        300.0   300.0
+    6   a  350000  360000      .  355000        300.0   300.0,   chr   start    stop strand    peak  signalValue  qValue
+    0   a     100     500      .     250         20.0    20.0
+    1   a    1000    3000      .    2000          0.0   100.0
+    2   a    4000   10000      .    7000         14.0    14.0
+    3   a  100000  110000      .  100000         30.0    30.0
+    4   a  200000  230000      .  215000        300.0   300.0
+    5   a  250000  260000      .  255000          0.0   300.0
+    6   a  350000  360000      .  355000          0.0   300.0,   chr   start    stop strand    peak  signalValue  qValue
+    0   a     100     500      .     250         21.0    21.0
+    1   a    1000    3000      .    2000        101.0   101.0
+    2   a    4000   10000      .    7000         15.0    15.0
+    3   a  100000  110000      .  100000         31.0    31.0
+    4   a  200000  230000      .  215000        301.0   301.0
+    5   a  250000  260000      .  255000        302.0   302.0
+    6   a  350000  360000      .  355000        302.0   302.0]
     """
     merged_files = [expand_peaks(
         collapse_peaks(
@@ -664,11 +734,18 @@ def merge_beds(bed_files: list,
         )
     nan_pos = set(nan_pos)
     log.logging.info("%s", str(len(nan_pos)) + " peaks unmached")
-    for merged in range(len(merged_files)):
-        merged_files[merged] = expand_peaks(
-            merged_files[merged].drop(nan_pos),
-            size=-size
-        )
+    if drop_unmatched:
+        for merged in range(len(merged_files)):
+            merged_files[merged] = expand_peaks(
+                merged_files[merged].drop(nan_pos),
+                size=-size
+            )
+    else:
+        for merged in range(len(merged_files)):
+            merged_files[merged] = expand_peaks(
+                merged_files[merged].fillna(0.0),
+                size=-size
+            )
     log.logging.info("%s", "working with " +
                      str(merged_files[0].shape[0]) + " peaks")
     return merged_files
@@ -709,7 +786,8 @@ def process_bed(file_names: list,
                 threshold: float = 0.0001,
                 file_cols: list = None,
                 score_cols: str = None,
-                pos_cols: list = None):
+                pos_cols: list = None,
+                drop_unmatched: bool = True):
     """
     Process a list of bed files names with the first names the merged bed files
     :param threshold:
@@ -722,6 +800,7 @@ def process_bed(file_names: list,
     :param file_cols: list of bed file columns
     :param score_cols: column name of the score to use
     :param pos_cols: list of position column name to sort and merge on
+    :param drop_unmatched: bool
     :return: nothing
     """
     if file_cols is None:
@@ -734,6 +813,7 @@ def process_bed(file_names: list,
         file_cols=file_cols,
         score_cols=score_cols,
         pos_cols=pos_cols,
+        drop_unmatched=drop_unmatched
     )
     if bed_files[0].shape[0] > 0:
         log.logging.info("%s", "computing idr")
