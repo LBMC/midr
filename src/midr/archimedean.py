@@ -957,8 +957,8 @@ def pdf_frank(u_values, theta, is_log=False):
             li = c_arch.polylog(
                 liarg,
                 -(d - 1.0)
-            ) + 1.0
-        copula = (d - 1.0) * np.log(theta) + li - theta * usum - lu - 1.0
+            )
+        copula = (d - 1.0) * np.log(theta) + li - theta * usum - lu
     if is_log:
         return copula
     return np.exp(copula)
