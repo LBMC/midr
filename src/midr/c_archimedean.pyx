@@ -125,7 +125,7 @@ def polylog(np.float64_t[::] z, np.float64_t s, is_log_z=False):
         w = z
         z = np.exp(w)
         return np.array(np.log(polyneval(eun, z)) + w - (n + 1.0) * log1mexpvec(
-            w, negative=True), dtype=np.float64)
+            w, negative=True), dtype=np.float128)
     else:
         return np.array(np.log(polyneval(eun, z)) + np.log(z) - (n + 1.0) *
-                               np.log1p(minus_vec(z)), dtype=np.float64)
+                               np.log1p(minus_vec(z)), dtype=np.float128)
