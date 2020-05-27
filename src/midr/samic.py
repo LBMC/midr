@@ -260,7 +260,7 @@ def build_constraint(copula, old_theta=np.nan, eps=1.0):
         {'type': 'ineq', 'fun': consts_max}
     ]
 
-def build_bounds(copula, eps=1e-8):
+def build_bounds(copula, eps=1e-4):
     """
     return set of bound for a given copula
     :param copula:
@@ -296,12 +296,14 @@ def minimize_theta(u_values, copula, params_list):
     """
     log.logging.debug("%s", copula + " minimize_theta")
     old_theta = params_list[copula]['theta']
+    log.logging.debug("%s", str([build_bounds(copula)]) + " minimize() bounds")
     res = minimize(
         fun=density_mix,
         args=(u_values, copula),
         x0=old_theta,
-        constraints=build_constraint(copula),
-        method="L-BFGS-B"
+        # constraints=build_constraint(copula),
+        bounds=[build_bounds(copula)],
+        method="SLSQP"
     )
     log.logging.debug("%s", res)
     if np.isnan(res.x):
