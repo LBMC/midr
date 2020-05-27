@@ -4,10 +4,6 @@
 This section of the code provide facilities to handle logs in the mIDR project
 """
 import logging
-import sys
-from os import path
-
-import numpy as np
 
 def add_log(log, theta, logl, pseudo):
     """
