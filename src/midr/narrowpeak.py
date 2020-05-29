@@ -13,6 +13,8 @@ from scipy.stats import rankdata
 import numpy as np
 import pandas as pd
 import midr.log as log
+import multiprocessing as mp
+from functools import partial
 
 def narrowpeaks_cols() -> list:
     """
@@ -326,6 +328,15 @@ def merge_peak(ref_peak: pd.Series, peak: pd.Series,
     return merged_peak
 
 
+def first(x):
+    """
+    return first line of x
+    :param x:
+    :return:
+    """
+    return x.iloc[0:1]
+
+
 def collapse_peaks(peaks: pd.DataFrame,
                    merge_function=sum,
                    score_col: str = None,
@@ -362,13 +373,6 @@ def collapse_peaks(peaks: pd.DataFrame,
     3   a  100000  110000      .  100000.000000           30      30
     4   a  200000  230000      .  213333.333333          900     200
     """
-    def first(x):
-        """
-        return first line of x
-        :param x:
-        :return:
-        """
-        return x.iloc[0:1]
     peaks_cols = peaks.columns.values.tolist()
     agg_dict = {'peak': np.mean, score_col: merge_function}
     for file_col in file_cols:
@@ -381,6 +385,18 @@ def collapse_peaks(peaks: pd.DataFrame,
     ).reset_index(drop=True)
     peaks.columns = agg_dict.keys()
     return peaks[peaks_cols]
+
+
+def expand(x, add_size):
+    """
+    function to exand one peak
+    :param x:
+    :param add_size:
+    :return:
+    """
+    x['start'] = max([x['start'] - add_size, 0])
+    x['stop'] += add_size
+    return x
 
 
 def expand_peaks(peaks: pd.DataFrame, size: int = 100) -> pd.DataFrame:
@@ -414,16 +430,6 @@ def expand_peaks(peaks: pd.DataFrame, size: int = 100) -> pd.DataFrame:
     8   a  199900  230100      .  215000          300     300
     9   a  199900  230100      .  220000          400     400
     """
-    def expand(x, add_size):
-        """
-        function to exand one peak
-        :param x:
-        :param add_size:
-        :return:
-        """
-        x['start'] = max([x['start'] - size, 0])
-        x['stop'] += add_size
-        return x
     return peaks.apply(
         func=lambda x: expand(x, add_size=size),
         axis=1
@@ -469,7 +475,7 @@ def overlapping_peaks(ref_peak, peaks, score_col):
     )
 
 
-def merge_peaks(ref_peaks: pd.DataFrame,
+def merge_peaks(index: int,
                 peaks: pd.DataFrame,
                 merge_function=sum,
                 score_col: str = None,
@@ -488,7 +494,8 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     :return: pd.DataFrame of the merged peaks
 
     >>> merge_peaks(
-    ... ref_peaks=pd.DataFrame({
+    ... index=0,
+    ... peaks=[pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a'],
     ... 'start': [50, 100, 1000, 4000, 100000, 200000],
     ... 'stop': [60, 500, 3000, 10000, 110000, 230000],
@@ -496,7 +503,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'peak': [55, 250, 2000, 7000, 100000, 215000],
     ... 'signalValue': [10.0, 20.0, 100.0, 15.0, 30.0, 200.0],
     ... 'qValue': [10.0, 20.0, 100.0, 15.0, 30.0, 200.0]}),
-    ... peaks=pd.DataFrame({
+    ... pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
     ... 'start': [100, 100, 1000, 4000, 4000, 4000, 100000, 200000, 200000,
     ... 200000],
@@ -508,7 +515,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'signalValue': [20.0, 15.0, 100.0, 15.0, 30.0, 14.0, 30.0, 200.0,
     ... 300.0, 400.0],
     ... 'qValue': [20.0, 15.0, 100.0, 15.0, 30.0, 14.0, 30.0, 200.0,
-    ... 300.0, 400.0]}),
+    ... 300.0, 400.0]})],
     ... score_col=narrowpeaks_score(),
     ... file_cols=narrowpeaks_cols(),
     ... pos_cols=narrowpeaks_sort_cols()
@@ -521,7 +528,8 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     4   a  100000  110000      .  100000         30.0    30.0
     5   a  200000  230000      .  215000        300.0   300.0
     >>> merge_peaks(
-    ... ref_peaks=pd.DataFrame({
+    ... index=0,
+    ... peaks=[pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a'],
     ... 'start': [100, 100, 1000, 4000, 100000, 200000, 200000],
     ... 'stop': [500, 500, 3000, 10000, 110000, 230000, 230000],
@@ -529,7 +537,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'peak': [250, 270, 2000, 7000, 100000, 213000, 215000],
     ... 'signalValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0],
     ... 'qValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0]}),
-    ... peaks=pd.DataFrame({
+    ... pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
     ... 'start': [101, 101, 1001, 4001, 4001, 4001, 100000, 200001, 200001,
     ... 200001],
@@ -541,7 +549,7 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     ... 'signalValue': [20.0, 15.0, 100.0, 15.0, 30.0, 14.0, 30.0, 200.0,
     ... 300.0, 400.0],
     ... 'qValue': [20.0, 15.0, 100.0, 15.0, 30.0, 14.0, 30.0, 200.0,
-    ... 300.0, 400.0]}),
+    ... 300.0, 400.0]})],
     ... score_col=narrowpeaks_score(),
     ... file_cols=narrowpeaks_cols(),
     ... pos_cols=narrowpeaks_sort_cols()
@@ -555,10 +563,12 @@ def merge_peaks(ref_peaks: pd.DataFrame,
     5   a  200001  230001      .  215000        300.0   300.0
     6   a  200001  230001      .  215000        300.0   300.0
     """
-    return ref_peaks.apply(
+    log.logging.info("%s",
+                     "merging " + str(index + 1) + "/" + str(len(peaks) - 1))
+    return peaks[0].apply(
         func=lambda x: overlapping_peaks(
             ref_peak=x,
-            peaks=peaks,
+            peaks=peaks[index + 1],
             score_col=score_col
         ),
         axis=1
@@ -571,7 +581,8 @@ def merge_beds(bed_files: list,
                file_cols: list = None,
                score_col: str = None,
                pos_cols: list = None,
-               drop_unmatched: bool = True) -> list:
+               drop_unmatched: bool = True,
+               thread_num=mp.cpu_count()) -> list:
     """
     Merge a list of bed according to position in a reference in the list
     :param file_cols:
@@ -582,6 +593,7 @@ def merge_beds(bed_files: list,
     :param score_col: str with the name of the score column
     :param pos_cols: list list of columns name for position information
     :param drop_unmatched: bool
+    :param thread_num number of cpus to use
     :return: a list of bed files (pd.DataFrame)
     >>> merge_beds(
     ... bed_files=[
@@ -711,25 +723,33 @@ def merge_beds(bed_files: list,
         ),
         size=size
     )]
+    merged_files += list(
+        map(lambda x: expand_peaks(x, size=size), bed_files[1:])
+    )
     nan_pos = []
-    i = 0
-    for bed in bed_files[1:]:
-        i += 1
-        log.logging.info("%s", "merging " + str(i) + "/" + str(len(
-            bed_files)-1))
-        merged_files.append(
-            merge_peaks(
-                ref_peaks=merged_files[0],
-                peaks=expand_peaks(bed, size=size),
-                merge_function=merge_function,
-                file_cols=file_cols,
-                score_col=score_col,
-                pos_cols=pos_cols
-            )
-        )
+    if thread_num == 0:
+        merged_files[1:] = list(map(partial(merge_peaks,
+            peaks=merged_files,
+            merge_function=merge_function,
+            score_col=score_col,
+            file_cols=file_cols,
+            pos_cols=pos_cols),
+        range(len(bed_files) - 1),
+        ))
+    else:
+        pool = mp.Pool(thread_num)
+        merged_files[1:] = list(pool.map(partial(merge_peaks,
+            peaks=merged_files,
+            merge_function=merge_function,
+            score_col=score_col,
+            file_cols=file_cols,
+            pos_cols=pos_cols),
+        range(len(bed_files) - 1),
+        ))
+    for i in range(len(merged_files)-1):
         nan_pos += list(
-            merged_files[-1].index[
-                merged_files[-1][score_col].apply(np.isnan)
+            merged_files[i+1].index[
+                merged_files[i+1][score_col].apply(np.isnan)
             ].to_numpy()
         )
     nan_pos = set(nan_pos)

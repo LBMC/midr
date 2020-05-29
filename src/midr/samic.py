@@ -19,6 +19,7 @@ import numpy as np
 import midr.log as log
 import midr.archimedean as archimedean
 from midr.idr import compute_empirical_marginal_cdf, compute_rank, sim_m_samples
+import midr.archimediean_plots as archimediean_plots
 
 
 def delta(copula_list, params_list, threshold):
@@ -274,16 +275,15 @@ def build_bounds(copula, eps=1e-4):
         },
         'frank': {
             'theta_min': 0.0,
-            'theta_max': 745.0
+            'theta_max': 744.0
         },
         'gumbel': {
             'theta_min': 1.0,
             'theta_max': 100
         }
     }
-    return [
-        (thetas[copula]['theta_min'] + eps, thetas[copula]['theta_max'] - eps)
-    ]
+    return (thetas[copula]['theta_min'] + eps, thetas[copula]['theta_max'] - eps)
+
 
 
 def minimize_theta(u_values, copula, params_list):
@@ -297,6 +297,10 @@ def minimize_theta(u_values, copula, params_list):
     log.logging.debug("%s", copula + " minimize_theta")
     old_theta = params_list[copula]['theta']
     log.logging.debug("%s", str([build_bounds(copula)]) + " minimize() bounds")
+    archimediean_plots.pdf_copula_plot(lower=build_bounds(copula)[0],
+                     upper=build_bounds(copula)[1],
+                     copula=copula,
+                     u_values=u_values)
     res = minimize(
         fun=density_mix,
         args=(u_values, copula),
