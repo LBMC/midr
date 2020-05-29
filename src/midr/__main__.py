@@ -99,6 +99,12 @@ def parse_args(args):
                      default="archimedean",
                      type=str,
                      help="copula model to use('archimedean' or 'gaussian'")
+    arg.add_argument("--cpu", "-cpu", metavar="CPU",
+                     dest='cpu',
+                     required=False,
+                     default=1,
+                     type=int,
+                     help="number of thread to use for merging the beds files")
     arg.add_argument("--debug", "-d", action="store_true",
                      default=False,
                      help="enable debugging")
@@ -148,7 +154,8 @@ def main(options=parse_args(args=sys.argv[1:])):
                 threshold=options.threshold,
                 file_cols=narrowpeak.narrowpeaks_cols(),
                 pos_cols=narrowpeak.narrowpeaks_sort_cols(),
-                drop_unmatched=options.drop_unmatched
+                drop_unmatched=options.drop_unmatched,
+                thread_num=options.cpu
             )
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")

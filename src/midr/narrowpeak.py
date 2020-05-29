@@ -130,7 +130,8 @@ def readfiles(file_names: list,
               file_cols: list = None,
               score_cols: str = None,
               pos_cols: list = None,
-              drop_unmatched: bool = True) -> list:
+              drop_unmatched: bool = True,
+              thread_num=mp.cpu_count()) -> list:
     """
     Reads a list of bed filenames and return a list of pd.DataFrame
     :type drop_unmatched: bool
@@ -143,6 +144,7 @@ def readfiles(file_names: list,
     :param score_cols: column name of the score to use
     :param pos_cols: list of position column name to sort and merge on
     :param drop_unmatched: bool
+    :param thread_num: int number of thread to use for merging
     :return: list[pd.DataFrame] containing the file csv columns
     """
     bed_paths = list()
@@ -159,7 +161,8 @@ def readfiles(file_names: list,
         score_col=score_cols,
         pos_cols=pos_cols,
         file_cols=file_cols,
-        drop_unmatched=drop_unmatched
+        drop_unmatched=drop_unmatched,
+        thread_num=thread_num
     )
 
 
@@ -727,7 +730,7 @@ def merge_beds(bed_files: list,
         map(lambda x: expand_peaks(x, size=size), bed_files[1:])
     )
     nan_pos = []
-    if thread_num == 0:
+    if thread_num <= 1:
         merged_files[1:] = list(map(partial(merge_peaks,
             peaks=merged_files,
             merge_function=merge_function,
@@ -807,7 +810,9 @@ def process_bed(file_names: list,
                 file_cols: list = None,
                 score_cols: str = None,
                 pos_cols: list = None,
-                drop_unmatched: bool = True):
+                drop_unmatched: bool = True,
+                thread_num=mp.cpu_count()
+                ):
     """
     Process a list of bed files names with the first names the merged bed files
     :param threshold:
@@ -821,6 +826,7 @@ def process_bed(file_names: list,
     :param score_cols: column name of the score to use
     :param pos_cols: list of position column name to sort and merge on
     :param drop_unmatched: bool
+    :param thread_num: int number of thread to use for merging
     :return: nothing
     """
     if file_cols is None:
@@ -833,7 +839,8 @@ def process_bed(file_names: list,
         file_cols=file_cols,
         score_cols=score_cols,
         pos_cols=pos_cols,
-        drop_unmatched=drop_unmatched
+        drop_unmatched=drop_unmatched,
+        thread_num=thread_num
     )
     if bed_files[0].shape[0] > 0:
         log.logging.info("%s", "computing idr")
