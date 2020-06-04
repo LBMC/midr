@@ -552,10 +552,11 @@ def em_pseudo_data(z_values,
             theta=theta_t1
         )
         if logl_t1 - logl_t0 < 0.0:
-            log.logging.debug("%s",
-                             "warning: EM decreassing logLikelihood \
-                             rho: " +
-                             str(logl_t1 - logl_t0))
+            log.logging.debug(
+                "%s",
+                "warning: EM decreassing logLikelihood rho: " +
+                str(logl_t1 - logl_t0)
+            )
             log.logging.debug("%s", str(theta_t1))
             return theta_t0, k_state, logger
         logger = log.add_log(
@@ -567,13 +568,12 @@ def em_pseudo_data(z_values,
     return theta_t1, k_state, logger
 
 
-def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
+def pseudo_likelihood(x_score, threshold=0.0001):
     """
     pseudo likelhood optimization for the copula model parameters
     :param x_score np.array of score (measures x samples)
     :param threshold float min delta between every parameters between two
     iterations
-    :param log_name str name of the log files
     :return (theta: dict, lidr: list) with thata the model parameters and
     lidr the local idr values for each measures
     >>> THETA_TEST_0 = {'pi': 0.6, 'mu': 0.0, 'sigma': 1.0, 'rho': 0.0}
@@ -586,8 +586,7 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     ...                      m_sample=2,
     ...                      theta_0=THETA_TEST_0,
     ...                      theta_1=THETA_TEST_1)
-    >>> lidr = pseudo_likelihood(DATA["X"],
-    ...                                      threshold=0.0001)
+    >>> lidr = pseudo_likelihood(DATA["X"])
     >>> np.sum((np.array(lidr) < 0.5).all() == DATA["K"]) / len(lidr)
     """
     theta_t0 = deepcopy(THETA_INIT)
@@ -603,6 +602,7 @@ def pseudo_likelihood(x_score, threshold=0.0001, log_name=""):
     }
     logl_t1 = -np.inf
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
+    z_values = u_values
     while delta(theta_t0, theta_t1, threshold, logl_t1):
         del theta_t0
         theta_t0 = deepcopy(theta_t1)
@@ -639,12 +639,14 @@ def log_idr(theta):
     :param theta:
     :return:
     """
-    return str('{' +
-            '"pi": ' + str(theta['pi']) + ', ' +
-            '"mu": ' + str(theta['mu']) + ', ' +
-            '"sigma": ' + str(theta['sigma']) + ', ' +
-            '"rho": ' + str(theta['rho']) +
-            '}')
+    return str(
+        '{' +
+        '"pi": ' + str(theta['pi']) + ', ' +
+        '"mu": ' + str(theta['mu']) + ', ' +
+        '"sigma": ' + str(theta['sigma']) + ', ' +
+        '"rho": ' + str(theta['rho']) +
+        '}'
+    )
 
 
 THETA_INIT = {

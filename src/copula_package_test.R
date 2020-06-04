@@ -334,3 +334,10 @@ vapply(k, function(j) sum(log(abs(alpha*j-(k-1L)))), NA_real_)
 copula::polyG
 
 .Machine$double.eps
+
+copFrank@dacopula(x, 0.2, log=F, Li.log.arg = F) - c(0.94796045, 1.07458178, 0.91117583, 0.98067912, 0.99144689, 0.9939432 , 0.94162409, 0.96927238, 1.02271257, 0.98591624)
+copFrank@dacopula(x, 0.2, log=F, Li.log.arg = F) - c(0.94796044, 1.0745818 , 0.91117584, 0.98067908, 0.99144693,
+0.99394317, 0.94162409, 0.96927238, 1.02271253, 0.98591628)
+
+polylog(log(c(0.01556112, 0.00108968, 0.00889932)), -2, is.log.z = TRUE, log = T)
+polylog(c(0.01556112, 0.00108968, 0.00889932), -2, is.log.z = TRUE, log = F)

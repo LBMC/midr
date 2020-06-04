@@ -16,6 +16,7 @@ import midr.log as log
 import multiprocessing as mp
 from functools import partial
 
+
 def narrowpeaks_cols() -> list:
     """
     Return list of narrowpeak column names
@@ -53,6 +54,7 @@ def readbed(bed_path: PurePath,
     assert path.isfile(str(bed_path)), "File {str(bed_path)} doesn't exist"
     assert access(str(bed_path), R_OK), "File {str(bed_path)} isn't readable"
     log.logging.info("%s", "reading " + str(bed_path))
+
     def move_peak(x):
         """
         x move peak in x according to the start pos
@@ -192,6 +194,10 @@ def writefiles(bed_files: list,
     """
 
     def move_peak(x):
+        """
+        :param x:
+        :return:
+        """
         x['peak'] -= x['start']
         return x
     idr = benjamini_hochberg(p_vals=lidr)
@@ -479,21 +485,14 @@ def overlapping_peaks(ref_peak, peaks, score_col):
 
 
 def merge_peaks(index: int,
-                peaks: pd.DataFrame,
-                merge_function=sum,
-                score_col: str = None,
-                file_cols: list = None,
-                pos_cols: list = None) -> pd.DataFrame:
+                peaks: [pd.DataFrame],
+                score_col: str = None) -> pd.DataFrame:
     """
     Copy peaks values from peaks into the corresponding position in merged_peaks
     Peaks not found in peaks have a score of nan
-    :param file_cols:
-    :param ref_peaks: pd.DataFrame which is a copy of ref_peaks
+    :param index: int index of the bed files
     :param peaks: pd.DataFrame of the peaks we want to merge
-    :param merge_function: function to apply to the score column when
-    removing duplicates
     :param score_col: str with the name of the score column
-    :param pos_cols: list list of columns name for position information
     :return: pd.DataFrame of the merged peaks
 
     >>> merge_peaks(
@@ -520,8 +519,6 @@ def merge_peaks(index: int,
     ... 'qValue': [20.0, 15.0, 100.0, 15.0, 30.0, 14.0, 30.0, 200.0,
     ... 300.0, 400.0]})],
     ... score_col=narrowpeaks_score(),
-    ... file_cols=narrowpeaks_cols(),
-    ... pos_cols=narrowpeaks_sort_cols()
     ... )
       chr   start    stop strand    peak  signalValue  qValue
     0   a      50      60      .      55          NaN    10.0
@@ -554,8 +551,6 @@ def merge_peaks(index: int,
     ... 'qValue': [20.0, 15.0, 100.0, 15.0, 30.0, 14.0, 30.0, 200.0,
     ... 300.0, 400.0]})],
     ... score_col=narrowpeaks_score(),
-    ... file_cols=narrowpeaks_cols(),
-    ... pos_cols=narrowpeaks_sort_cols()
     ... )
       chr   start    stop strand    peak  signalValue  qValue
     0   a     101     501      .     250         20.0    20.0
@@ -643,11 +638,13 @@ def merge_beds(bed_files: list,
     0   a     100     500      .     260         50.0    20.0
     2   a    4000   10000      .    7000         15.0    15.0
     3   a  100000  110000      .  100000         30.0    30.0
-    4   a  200000  230000      .  214000        350.0   150.0,   chr   start    stop strand    peak  signalValue  qValue
+    4   a  200000  230000      .  214000        350.0   150.0,   chr   start   \
+     stop strand    peak  signalValue  qValue
     0   a     100     500      .     250         20.0    20.0
     2   a    4000   10000      .    7000         14.0    14.0
     3   a  100000  110000      .  100000         30.0    30.0
-    4   a  200000  230000      .  215000        300.0   300.0,   chr   start    stop strand    peak  signalValue  qValue
+    4   a  200000  230000      .  215000        300.0   300.0,   chr   start   \
+     stop strand    peak  signalValue  qValue
     0   a     100     500      .     250         21.0    21.0
     2   a    4000   10000      .    7000         15.0    15.0
     3   a  100000  110000      .  100000         31.0    31.0
@@ -660,7 +657,8 @@ def merge_beds(bed_files: list,
     ... 'stop': [500, 500, 3000, 10000, 110000, 230000, 230000, 260000, 360000],
     ... 'strand': [".", ".", ".", ".", ".", ".", ".", ".", "."],
     ... 'peak': [250, 270, 2000, 7000, 100000, 213000, 215000, 255000, 355000],
-    ... 'signalValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0, 300.0, 300.0],
+    ... 'signalValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0, 300.0,
+    ... 300.0],
     ... 'qValue': [20.0, 30.0, 100.0, 15.0, 30.0, 150.0, 200.0, 300.0, 300.0]}),
     ... pd.DataFrame({
     ... 'chr': ['a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a'],
@@ -701,14 +699,16 @@ def merge_beds(bed_files: list,
     3   a  100000  110000      .  100000         30.0    30.0
     4   a  200000  230000      .  214000        350.0   150.0
     5   a  250000  260000      .  255000        300.0   300.0
-    6   a  350000  360000      .  355000        300.0   300.0,   chr   start    stop strand    peak  signalValue  qValue
+    6   a  350000  360000      .  355000        300.0   300.0,   chr   start   \
+     stop strand    peak  signalValue  qValue
     0   a     100     500      .     250         20.0    20.0
     1   a    1000    3000      .    2000          0.0   100.0
     2   a    4000   10000      .    7000         14.0    14.0
     3   a  100000  110000      .  100000         30.0    30.0
     4   a  200000  230000      .  215000        300.0   300.0
     5   a  250000  260000      .  255000          0.0   300.0
-    6   a  350000  360000      .  355000          0.0   300.0,   chr   start    stop strand    peak  signalValue  qValue
+    6   a  350000  360000      .  355000          0.0   300.0,   chr   start   \
+     stop strand    peak  signalValue  qValue
     0   a     100     500      .     250         21.0    21.0
     1   a    1000    3000      .    2000        101.0   101.0
     2   a    4000   10000      .    7000         15.0    15.0
@@ -732,23 +732,17 @@ def merge_beds(bed_files: list,
     nan_pos = []
     if thread_num <= 1:
         merged_files[1:] = list(map(partial(merge_peaks,
-            peaks=merged_files,
-            merge_function=merge_function,
-            score_col=score_col,
-            file_cols=file_cols,
-            pos_cols=pos_cols),
-        range(len(bed_files) - 1),
-        ))
+                                            peaks=merged_files,
+                                            score_col=score_col ),
+                                    range(len(bed_files) - 1),
+                                    ))
     else:
         pool = mp.Pool(thread_num)
         merged_files[1:] = list(pool.map(partial(merge_peaks,
-            peaks=merged_files,
-            merge_function=merge_function,
-            score_col=score_col,
-            file_cols=file_cols,
-            pos_cols=pos_cols),
-        range(len(bed_files) - 1),
-        ))
+                                                 peaks=merged_files,
+                                                 score_col=score_col),
+                                         range(len(bed_files) - 1),
+                                         ))
     for i in range(len(merged_files)-1):
         nan_pos += list(
             merged_files[i+1].index[
@@ -849,12 +843,7 @@ def process_bed(file_names: list,
                 np_list=bed_files[1:],
                 score_cols=score_cols
             ),
-            threshold=threshold,
-            log_name=str(
-                PurePath(outdir).joinpath(
-                    "idr_" + str(PurePath(str(file_names[0])).name)
-                )
-            )
+            threshold=threshold
         )
         log.logging.info("%s", "writing results")
         writefiles(
