@@ -7,6 +7,6 @@ idr library
 
 name = "midr"
 __all__ = ["__main__",
-    "idr", "samic", "archimedean", "c_archimedean",
+    "idr", "samic", "archimedean", "c_archimedean", "archimediean_plots",
     "log", "narrowpeak"]
 
