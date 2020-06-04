@@ -13,6 +13,7 @@ call for the merged replicate. This tool computes and appends a IDR column to
 NarrowPeaks files.
 """
 
+import midr.log as log
 from sys import float_info
 import numpy as np
 from scipy.optimize import minimize
@@ -144,6 +145,7 @@ def signff(alpha, j, d):
                     res[i] = (-1.0) ** (j[i] - np.ceil(x))
     return res
 
+
 def log1mexpunit(x):
     """
     compute log(1-exp(-a)
@@ -217,13 +219,12 @@ def diag_copula(u_values):
     return y
 
 
-def max_diag_pdf(u_values, diag_pdf, init, constraint, bounds):
+def max_diag_pdf(u_values, diag_pdf, init, bounds):
     """
     find theta using dmle from diagonal pdf
     :param u_values:
     :param diag_pdf:
     :param init:
-    :param constraint:
     :param bounds:
     :return:
     """
@@ -270,8 +271,6 @@ def dmle_copula_clayton(u_values):
         u_values=u_values,
         diag_pdf=diag_pdf_clayton,
         init=0.5,
-        constraint=[{'type': 'ineq', 'fun': lambda x: float_info.min},
-                    {'type': 'ineq', 'fun': lambda x: 1000.0 - x}],
         bounds=(float_info.min, 1000.0)
     )
 
@@ -300,8 +299,6 @@ def dmle_copula_frank(u_values):
         u_values=u_values,
         diag_pdf=diag_pdf_frank,
         init=0.5,
-        constraint=[{'type': 'ineq', 'fun': lambda x: x - float_info.min},
-                    {'type': 'ineq', 'fun': lambda x: 745.0 - x}],
         bounds=(float_info.min, 745.0)
     )
 
@@ -361,7 +358,7 @@ def ipsi_clayton(x, theta, is_log=False):
            [-1.05452015, -0.85128374, -2.14210478],
            [-2.47465594, -2.58334647, -1.40228078]])
     """
-    x = np.array(x, dtype=np.float128)
+    x = np.array(x, dtype=np.float64)
     res = np.sign(theta) * ((x ** -theta) - 1.0)
     if is_log:
         return np.array(np.log(res), dtype=np.float64)
@@ -552,10 +549,6 @@ def dmle_copula_gumbel(u_values):
                     u_values=u_values,
                     diag_pdf=diag_pdf_gumbel,
                     init=1.5,
-                    constraint=[{'type': 'ineq',
-                                 'fun': lambda x: x - (1.0 + float_info.min)},
-                                {'type': 'ineq',
-                                 'fun': lambda x: 100.0 - x}],
                     bounds=(1.0 + float_info.min, 100.0)
                 )])
 
@@ -875,33 +868,24 @@ def polyneval(coef, x):
 
 def polylog(z, s, is_log_z=False):
     """
-
     :param z:
     :param s:
     :param is_log_z:
     :return:
     >>> polylog(np.array([0.01556112, 0.00108968, 0.00889932]), -2)
-    array([-4.1004881 , -6.81751129, -4.68610299])
+    array([-4.10048812, -6.81751128, -4.68610298])
+    >>> polylog(np.log(np.array([0.01556112, 0.00108968, 0.00889932])), -2,
+    ... True)
+    array([-4.10048812, -6.81751128, -4.68610298])
     """
-    z = np.array(z, dtype=np.float128)
     n = -int(s)
-    eun = eulerian_all(n)
     if is_log_z:
         w = z
-        z = np.exp(w)
-        return np.array(
-            np.log(c_arch.polyneval(eun.astype(np.float64), z.astype(
-                np.float64))) + w - (n + 1.0) * log1mexp(-w),
-            dtype=np.float64
-        )
+        z = np.exp(z)
+        return np.log(c_arch.polyneval(c_arch.eulerian_all(n), z)) + w - np.array(n + 1.0) * np.array(c_arch.log1mexpvec(-w))
     else:
-        return np.array(
-            np.log(c_arch.polyneval(eun.astype(np.float64), z.astype(
-                np.float64))) + np.log(z) -
-            (n + 1.0) *
-            np.log1p(-z),
-            dtype=np.float64
-        )
+        return np.log(c_arch.polyneval(c_arch.eulerian_all(n), z)) + np.log(z) \
+               - np.array(n + 1.0) * np.array(np.log1p(-z))
 
 
 def pdf_frank(u_values, theta, is_log=False):
@@ -953,11 +937,7 @@ def pdf_frank(u_values, theta, is_log=False):
         lpu = log1mexp(theta * u_values)
         lu = np.sum(lpu, axis=1)
         liarg = -np.expm1(-theta) * np.exp(np.sum(lpu - lp, axis=1))
-        with np.errstate(divide='ignore'):
-            li = c_arch.polylog(
-                liarg,
-                -(d - 1.0)
-            )
+        li = polylog(liarg, -(d - 1.0))
         copula = (d - 1.0) * np.log(theta) + li - theta * usum - lu
     if is_log:
         return copula
@@ -1193,7 +1173,6 @@ def log_polyg(lx_var, alpha_var, d_var):
     return lssum(
         x_values=lxabs,
         x_sign=signff(alpha_var, k, d_var),
-        is_log=True
     )
 
 

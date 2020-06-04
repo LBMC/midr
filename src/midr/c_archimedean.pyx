@@ -67,10 +67,10 @@ def log1mexpvec(np.float64_t[::] x):
     :return:
     """
     cdef int i
-    y = np.empty_like(x)
-    cdef np.float64_t[::] res = y
-    for i in range(len(x)):
-        eps = np.log(2.0)
+    cdef int n = len(x)
+    cdef float eps = np.log(2.0)
+    cdef np.float64_t[::] res = np.empty_like(x)
+    for i in range(n):
         if x[i] <= eps:
             res[i] = np.log(-np.expm1(-x[i]))
         else:
@@ -88,13 +88,25 @@ def polyneval(np.float64_t[::] coef, np.float64_t[::] x, negative = False):
     """
     cdef int i
     cdef int j
-    y = np.zeros([len(x)], dtype=np.float64)
-    cdef np.float64_t[::] res = y
-    for i in range(len(x)):
-        for j in range(len(coef)):
-            res[i] = res[i] * x[i] + coef[j]
-            if negative:
-                res[i] = -res[i]
+    cdef int n = len(x)
+    cdef int m = len(coef)
+    cdef float r
+    cdef float xi
+    cdef np.float64_t[::] res = np.zeros([len(x)], dtype=np.float64)
+    for i in range(n):
+        r = x[i]
+        xi = x[i]
+        if m == 0:
+            r = 0.
+        else:
+            j = m-1
+            r = coef[j]
+            for j in range(m-1, 0, -1):
+                r = r * xi + coef[j]
+        if negative:
+            res[i] = -r
+        else:
+            res[i] = r
     return res
 
 
@@ -103,8 +115,7 @@ def minus_vec(np.float64_t[::] x):
     return -x
     """
     cdef int i
-    y = np.zeros([len(x)], dtype=np.float64)
-    cdef np.float64_t[::] res = y
+    cdef np.float64_t[::] res = np.zeros([len(x)], dtype=np.float64)
     for i in range(len(x)):
         res[i] = -x[i]
     return res
@@ -120,12 +131,16 @@ def polylog(np.float64_t[::] z, np.float64_t s, is_log_z=False):
     array([-4.1004881 , -6.81751129, -4.68610299])
     """
     n = -int(s)
-    eun = eulerian_all(n)
     if is_log_z:
         w = z
         z = np.exp(w)
-        return np.array(np.log(polyneval(eun, z)) + w - (n + 1.0) * log1mexpvec(
-            w, negative=True), dtype=np.float128)
+        return np.array(
+            np.log(polyneval(eulerian_all(n), z)) +
+            w - (n + 1.0) * log1mexpvec(minus_vec(w))
+            ,
+            dtype=np.float128)
     else:
-        return np.array(np.log(polyneval(eun, z)) + np.log(z) - (n + 1.0) *
-                               np.log1p(minus_vec(z)), dtype=np.float128)
+        return np.array(
+            np.log(polyneval(eulerian_all, z)) +
+            np.log(z) - (n + 1.0) * np.log1p(minus_vec(z)),
+            dtype=np.float128)
