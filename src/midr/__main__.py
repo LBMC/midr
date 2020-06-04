@@ -11,7 +11,6 @@ Given a list of peak calls in NarrowPeaks format and the corresponding peak
 call for the merged replicate. This tool computes and appends a IDR column to
 NarrowPeaks files.
 """
-import logging
 import sys
 import argparse
 from os import path, access, W_OK, makedirs
@@ -34,7 +33,8 @@ def parse_args(args):
     """Parse arguments."""
     parser = argparse.ArgumentParser(
         description=sys.modules[__name__].__doc__,
-        formatter_class=CustomFormatter)
+        formatter_class=CustomFormatter
+    )
 
     arg = parser.add_argument_group("IDR settings")
     arg.add_argument("--merged", "-m", metavar="FILE",

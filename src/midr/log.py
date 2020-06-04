@@ -5,6 +5,7 @@ This section of the code provide facilities to handle logs in the mIDR project
 """
 import logging
 
+
 def add_log(log, theta, logl, pseudo):
     """
     function to append thata and ll value to the logs
@@ -40,4 +41,5 @@ def setup_logging(options):
         format="%(asctime)s: %(message)s", datefmt='%H:%M:%S',
         handlers=handler_list
     )
+    logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
