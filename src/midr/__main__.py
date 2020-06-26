@@ -17,6 +17,7 @@ from os import path, access, W_OK, makedirs
 from pathlib import PurePath
 
 import midr.narrowpeak as narrowpeak
+import midr.raw_matrix as raw_matrix
 import midr.log as log
 import midr.idr as idr
 import midr.samic as samic
@@ -39,13 +40,13 @@ def parse_args(args):
     arg = parser.add_argument_group("IDR settings")
     arg.add_argument("--merged", "-m", metavar="FILE",
                      dest='merged',
-                     required=True,
+                     required=False,
                      default=argparse.SUPPRESS,
                      type=str,
                      help="file of the merged NarrowPeaks")
     arg.add_argument("--files", "-f", metavar="FILES",
                      dest='files',
-                     required=True,
+                     required=False,
                      default=argparse.SUPPRESS,
                      type=str,
                      nargs='+',
@@ -111,6 +112,14 @@ def parse_args(args):
     arg.add_argument("--verbose", "-v", action="store_true",
                      default=False,
                      help="log to console")
+    arg.add_argument("--matrix", metavar="FILE",
+                     dest='matrix',
+                     required=False,
+                     default=argparse.SUPPRESS,
+                     type=str,
+                     help="matrix file of the peaks score in raw (tsv "
+                          "format), replace the --merge and --files options "
+                          "if used")
     return parser.parse_args(args)
 
 
@@ -140,23 +149,36 @@ def main(options=parse_args(args=sys.argv[1:])):
                 "Folder {} isn't writable".format(options.output)
             if not path.isdir(options.output):
                 makedirs(options.output)
+            assert ("merged" in vars(options).keys() and "files" in
+                    vars(options).keys()
+                    ) or "matrix" in vars(options).keys(), \
+                "must either provide a --merged file and a list of --files, " \
+                "or a --matrix file"
             log.setup_logging(options)
             model = samic.samic
             if options.method == 'gaussian':
                 model = idr.pseudo_likelihood
-            narrowpeak.process_bed(
-                file_names=[options.merged] + options.files,
-                outdir=options.output,
-                idr_func=model,
-                size=options.size_merge,
-                merge_function=options.merge_function,
-                score_cols=options.score,
-                threshold=options.threshold,
-                file_cols=narrowpeak.narrowpeaks_cols(),
-                pos_cols=narrowpeak.narrowpeaks_sort_cols(),
-                drop_unmatched=options.drop_unmatched,
-                thread_num=options.cpu
-            )
+            if "merged" in vars(options).keys() and \
+                 "files" in vars(options).keys():
+                narrowpeak.process_bed(
+                    file_names=[options.merged] + options.files,
+                    outdir=options.output,
+                    idr_func=model,
+                    size=options.size_merge,
+                    merge_function=options.merge_function,
+                    score_cols=options.score,
+                    threshold=options.threshold,
+                    file_cols=narrowpeak.narrowpeaks_cols(),
+                    pos_cols=narrowpeak.narrowpeaks_sort_cols(),
+                    drop_unmatched=options.drop_unmatched,
+                    thread_num=options.cpu
+                )
+            elif "matrix" in vars(options).keys():
+                raw_matrix.process_matrix(
+                    file_name=options.matrix,
+                    outdir=options.output,
+                    idr_func=model
+                )
         except KeyboardInterrupt:
             print("Shutdown requested...exiting")
             sys.exit(0)

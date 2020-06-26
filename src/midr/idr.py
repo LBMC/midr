@@ -589,6 +589,7 @@ def pseudo_likelihood(x_score, threshold=0.0001):
     >>> lidr = pseudo_likelihood(DATA["X"])
     >>> np.sum((np.array(lidr) < 0.5).all() == DATA["K"]) / len(lidr)
     """
+    log.logging.info("%s", "computing idr")
     theta_t0 = deepcopy(THETA_INIT)
     theta_t1 = deepcopy(THETA_INIT)
     k_state = [0.0] * int(x_score.shape[0])

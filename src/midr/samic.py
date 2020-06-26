@@ -342,6 +342,7 @@ def samic(x_score, threshold=1e-4):
     >>> lidr = samic(DATA["X"], threshold=0.0001)
     >>> np.sum((lidr < 0.5).all() == DATA["K"]) / len(lidr)
     """
+    log.logging.info("%s", "computing idr")
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
     copula_list = ["clayton", "frank", "gumbel"]
     dmle_copula = {

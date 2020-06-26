@@ -9,10 +9,10 @@ and compute IDR on the choosen value in the NarrowPeaks columns
 from os import path, access, R_OK
 from pathlib import PurePath
 from typing import Callable
-from scipy.stats import rankdata
 import numpy as np
 import pandas as pd
 import midr.log as log
+from midr.auxiliary import benjamini_hochberg
 import multiprocessing as mp
 from functools import partial
 
@@ -149,6 +149,7 @@ def readfiles(file_names: list,
     :param thread_num: int number of thread to use for merging
     :return: list[pd.DataFrame] containing the file csv columns
     """
+    log.logging.info("%s", "reading bed files")
     bed_paths = list()
     for file_name in file_names:
         bed_paths.append(PurePath(file_name))
@@ -168,18 +169,6 @@ def readfiles(file_names: list,
     )
 
 
-def benjamini_hochberg(p_vals):
-    """
-    compute fdr from pvalues
-    :param p_vals:
-    :return:
-    """
-    ranked_p_values = rankdata(p_vals)
-    fdr = p_vals * len(p_vals) / ranked_p_values
-    fdr[fdr > 1] = 1
-    return fdr
-
-
 def writefiles(bed_files: list,
                file_names: list,
                lidr: np.array,
@@ -192,6 +181,7 @@ def writefiles(bed_files: list,
     :param outdir: output directory
     :return: nothing
     """
+    log.logging.info("%s", "writing results")
 
     def move_peak(x):
         """
@@ -825,7 +815,6 @@ def process_bed(file_names: list,
     """
     if file_cols is None:
         file_cols = narrowpeaks_cols()
-    log.logging.info("%s", "reading bed files")
     bed_files = readfiles(
         file_names=file_names,
         size=size,
@@ -837,7 +826,6 @@ def process_bed(file_names: list,
         thread_num=thread_num
     )
     if bed_files[0].shape[0] > 0:
-        log.logging.info("%s", "computing idr")
         local_idr = idr_func(
             narrowpeaks2array(
                 np_list=bed_files[1:],
@@ -845,7 +833,6 @@ def process_bed(file_names: list,
             ),
             threshold=threshold
         )
-        log.logging.info("%s", "writing results")
         writefiles(
             bed_files=bed_files,
             file_names=file_names,
