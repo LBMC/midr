@@ -15,31 +15,22 @@ cimport cython
 cimport numpy as np
 import numpy as np
 
+
 def eulerian(np.int n, np.int m):
     """
-    compute eulerian numbers
+    Return euleriannumber A(n, m)
     :param n:
     :param m:
     :return:
     """
-    cdef int i
-    cdef int j
-    dp = np.full((n + 1, m + 1), 0)
-    # For each row from 1 to n
-    for i in range(1, n + 1):
-        # For each column from 0 to m
-        for j in range(0, m + 1):
-            # If i is greater than j
-            if i > j:
-                # If j is 0, then make that
-                # state as 1.
-                if j == 0:
-                    dp[i, j] = 1
-                # basic recurrence relation.
-                else:
-                    dp[i, j] = (((i - j) * dp[i - 1, j - 1]) +
-                                ((j + 1) * dp[i - 1, j]))
-    return dp[n, m]
+    if (m >= n or n == 0):
+        return 0;
+
+    if (m == 0):
+        return 1;
+
+    return ((n - m) * eulerian(n - 1, m - 1) +
+            (m + 1) * eulerian(n - 1, m))
 
 
 def eulerian_all(np.int n):
@@ -141,6 +132,6 @@ def polylog(np.float64_t[::] z, np.float64_t s, is_log_z=False):
             dtype=np.float128)
     else:
         return np.array(
-            np.log(polyneval(eulerian_all, z)) +
+            np.log(polyneval(eulerian_all(n), z)) +
             np.log(z) - (n + 1.0) * np.log1p(minus_vec(z)),
             dtype=np.float128)

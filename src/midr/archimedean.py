@@ -16,6 +16,7 @@ NarrowPeaks files.
 import midr.log as log
 from sys import float_info
 import numpy as np
+import functools
 from scipy.optimize import minimize
 from scipy.special import factorial
 from scipy.special import logsumexp
@@ -835,6 +836,7 @@ def eulerian(n, m):
     return dp[n, m]
 
 
+@functools.lru_cache(maxsize=1, typed=False)
 def eulerian_all(n):
     """
     compute eulerian number
@@ -845,10 +847,7 @@ def eulerian_all(n):
            1.310354e+06, 1.310354e+06, 4.551920e+05, 4.784000e+04,
            1.013000e+03, 1.000000e+00])
     """
-    res = np.zeros(shape=n)
-    for i in range(n):
-        res[i] = eulerian(n, i)
-    return res
+    return c_arch.eulerian_all(n)
 
 
 def polyneval(coef, x):
@@ -882,9 +881,12 @@ def polylog(z, s, is_log_z=False):
     if is_log_z:
         w = z
         z = np.exp(z)
-        return np.log(c_arch.polyneval(c_arch.eulerian_all(n), z)) + w - np.array(n + 1.0) * np.array(c_arch.log1mexpvec(-w))
+        polyn = c_arch.polyneval(eulerian_all(n), z)
+        return np.log(polyn) + w - np.array(n + 1.0) * np.array(
+            c_arch.log1mexpvec(-w))
     else:
-        return np.log(c_arch.polyneval(c_arch.eulerian_all(n), z)) + np.log(z) \
+        polyn = c_arch.polyneval(eulerian_all(n), z)
+        return np.log(polyn) + np.log(z) \
                - np.array(n + 1.0) * np.array(np.log1p(-z))
 
 
