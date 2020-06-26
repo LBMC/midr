@@ -113,3 +113,16 @@ boley_data %>%
   facet_wrap(~method) +
   theme_bw()
 ggsave("boley_vs_gaussian_vs_samic_max.pdf")
+
+colnames_midr <- c('chr', 'start', 'stop', 'name',
+                   'score', 'strand', 'signalValue', 'pValue',
+                   'qValue', 'peak', 'midr', 'idrrr')
+list.files(
+  path = "results/mold/2020_05_12_clone_data/R1_archimedian_size_1000/",
+  pattern = "idr_clone.*",
+  full.names = T) %>%  
+  map(., read_tsv, col_names = colnames_midr) %>% 
+  map(., select, signalValue) %>% 
+  do.call(bind_cols, .) %>% 
+  write_tsv("data/matrix_test.tsv", col_names = F)
+
