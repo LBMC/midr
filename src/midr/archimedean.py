@@ -865,7 +865,7 @@ def polyneval(coef, x):
     )
 
 
-def polylog(z, s, is_log_z=False):
+def polylog(z, s, is_log_z=True):
     """
     :param z:
     :param s:
@@ -908,8 +908,8 @@ def pdf_frank(u_values, theta, is_log=False):
     ...    [0.66752741, 0.69487362, 0.3329266]
     ...    ]),
     ...    0.2)
-    array([0.94796045, 1.07458178, 0.91117583, 0.98067912, 0.99144689,
-           0.9939432 , 0.94162409, 0.96927238, 1.02271257, 0.98591624])
+    array([0.94796044, 1.0745818 , 0.91117584, 0.98067908, 0.99144693,
+           0.99394317, 0.94162409, 0.96927238, 1.02271253, 0.98591628])
     >>> pdf_frank(np.array([
     ...    [0.42873569, 0.18285458, 0.9514195],
     ...    [0.25148149, 0.05617784, 0.3378213],
@@ -924,8 +924,8 @@ def pdf_frank(u_values, theta, is_log=False):
     ...    ]),
     ...    0.2,
     ...    is_log=True)
-    array([-0.05344249,  0.07193155, -0.09301939, -0.01950997, -0.00858989,
-           -0.00607522, -0.06014914, -0.03120961,  0.02245848, -0.01418388])
+    array([-0.05344251,  0.07193156, -0.09301938, -0.01951001, -0.00858986,
+           -0.00607524, -0.06014913, -0.03120962,  0.02245844, -0.01418384])
     """
     assert not np.isnan(theta), "pdf_frank: theta is nan"
     if theta == 0.0:
@@ -936,7 +936,7 @@ def pdf_frank(u_values, theta, is_log=False):
         lp = log1mexp(theta)
         lpu = log1mexp(theta * u_values)
         lu = np.sum(lpu, axis=1)
-        liarg = -np.expm1(-theta) * np.exp(np.sum(lpu - lp, axis=1))
+        liarg = lp + np.sum(lpu - lp, axis=1)
         li = polylog(liarg, -(d - 1.0))
         copula = (d - 1.0) * np.log(theta) + li - theta * usum - lu
     if is_log:
