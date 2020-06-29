@@ -881,12 +881,10 @@ def polylog(z, s, is_log_z=False):
     if is_log_z:
         w = z
         z = np.exp(z)
-        polyn = c_arch.polyneval(eulerian_all(n), z)
-        return np.log(polyn) + w - np.array(n + 1.0) * np.array(
-            c_arch.log1mexpvec(-w))
+        return np.log(c_arch.polyneval(eulerian_all(n), z)) + \
+               w - np.array(n + 1.0) * np.array(c_arch.log1mexpvec(-w))
     else:
-        polyn = c_arch.polyneval(eulerian_all(n), z)
-        return np.log(polyn) + np.log(z) \
+        return np.log(c_arch.polyneval(eulerian_all(n), z)) + np.log(z) \
                - np.array(n + 1.0) * np.array(np.log1p(-z))
 
 
