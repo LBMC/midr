@@ -22,6 +22,13 @@ from midr.idr import compute_empirical_marginal_cdf, compute_rank, sim_m_samples
 import midr.archimediean_plots as archimediean_plots
 
 
+COPULA_DENSITY = {
+    'clayton': archimedean.pdf_clayton,
+    'frank': archimedean.pdf_frank,
+    'gumbel': archimedean.pdf_gumbel
+}
+
+
 def delta(copula_list, params_list, threshold):
     """
     Return true if the difference between two iteration of samic if less than
@@ -49,14 +56,9 @@ def expectation_k(u_values, copula, params_list):
     :param params_list:
     :return:
     """
-    copula_density = {
-        'clayton': archimedean.pdf_clayton,
-        'frank': archimedean.pdf_frank,
-        'gumbel': archimedean.pdf_gumbel
-    }
     k_state = params_list[copula]['pi'] / (
         params_list[copula]['pi'] +
-        (1.0 - params_list[copula]['pi']) * copula_density[copula](
+        (1.0 - params_list[copula]['pi']) * COPULA_DENSITY[copula](
             u_values,
             params_list[copula]['theta'],
         )
@@ -72,17 +74,12 @@ def expectation_l(u_values, copula_list, params_list):
     :param params_list:
     :return:
     """
-    copula_density = {
-        'clayton': archimedean.pdf_clayton,
-        'frank': archimedean.pdf_frank,
-        'gumbel': archimedean.pdf_gumbel
-    }
     l_state = np.zeros((u_values.shape[0], len(copula_list)))
     dcopula = np.zeros((u_values.shape[0], len(copula_list)))
     for i in range(len(copula_list)):
         dcopula[:, i] = (params_list['alpha'][i] *
                          params_list[copula_list[i]]['pi'] *
-                         copula_density[copula_list[i]](
+                         COPULA_DENSITY[copula_list[i]](
                              u_values,
                              params_list[copula_list[i]]['theta'],
                          )
@@ -100,50 +97,16 @@ def density_mix(theta, u_values, copula, params_list):
     :param theta:
     :return:
     """
-    copula_density = {
-        'clayton': archimedean.pdf_clayton,
-        'frank': archimedean.pdf_frank,
-        'gumbel': archimedean.pdf_gumbel
-    }
     return -np.sum(
-        np.log(
-            params_list[copula]['pi'] +
-            (1 - params_list[copula]['pi']) *
-            copula_density[copula](
-                u_values,
-                theta,
-                is_log=False
-            )
-        ),
+        np.log(params_list[copula]['pi'] +
+        (1 - params_list[copula]['pi']) *
+        COPULA_DENSITY[copula](
+            u_values,
+            theta,
+            is_log=False
+        )),
         axis=0
     )
-
-
-def loglikelihood(u_values, params_list):
-    """
-    compute loklik for samic model
-    :param u_values:
-    :param params_list:
-    :return:
-    """
-    copula_density = {
-        'clayton': archimedean.pdf_clayton,
-        'frank': archimedean.pdf_frank,
-        'gumbel': archimedean.pdf_gumbel
-    }
-    loglik = 0.0
-    for copula in copula_density.keys():
-        loglik -= np.sum(
-            np.log(params_list[copula]['pi']) +
-            np.log(params_list['alpha'][params_list['order'][copula]]) +
-            copula_density[copula](
-                u_values,
-                params_list[copula]['theta'],
-                is_log=True
-            ),
-            axis=0
-        )
-    return loglik
 
 
 def local_idr(u_values, copula_list, params_list):
@@ -154,23 +117,15 @@ def local_idr(u_values, copula_list, params_list):
     :param params_list:
     :return:
     """
-    copula_density = {
-        'clayton': archimedean.pdf_clayton,
-        'frank': archimedean.pdf_frank,
-        'gumbel': archimedean.pdf_gumbel
-    }
-    lidr = np.zeros(u_values.shape[0])
-    lidr_denum = np.zeros(u_values.shape[0])
+    lidr = params_list[copula_list[i]]['pi']
+    lidr_denum = 0.0
     for i in range(len(copula_list)):
-        lidr += (params_list['alpha'][i] *
-                 (1.0 - params_list[copula_list[i]]['pi']))
-        lidr_denum += (params_list['alpha'][i] *
-                       params_list[copula_list[i]]['pi'] *
-                       copula_density[copula_list[i]](
-                           u_values,
-                           params_list[copula_list[i]]['theta'],
-                       )
-                       )
+        lidr_denum += params_list['alpha'][i] * \
+                      (1 - params_list[copula_list[i]]['pi']) * \
+                      COPULA_DENSITY[copula_list[i]](
+                          u_values,
+                          params_list[copula_list[i]]['theta'],
+                      )
     return lidr / (lidr + lidr_denum)
 
 
@@ -366,8 +321,30 @@ def samic(x_score, threshold=1e-4):
         i += 1
     params_list['l_state'] = np.zeros((u_values.shape[0], len(copula_list)))
     params_list['alpha'] = np.repeat(1.0 / len(copula_list), len(copula_list))
-    params_list['alpha_old'] = np.repeat(np.Inf, len(copula_list))
+    params_list['alpha_old'] = params_list['alpha']
     while delta([copula], params_list, threshold):
+        while delta([copula], params_list, threshold):
+            for copula in copula_list:
+                params_list[copula]['pi_old'] = params_list[copula]['pi']
+                params_list[copula]['theta_old'] = params_list[copula]['theta']
+                params_list[copula]['k_state'] = expectation_k(
+                    u_values=u_values,
+                    copula=copula,
+                    params_list=params_list,
+                )
+                params_list[copula]['pi'] = minimize_pi(
+                    k_state=params_list[copula]['k_state']
+                )
+                params_list[copula]['theta'] = minimize_theta(
+                    u_values=u_values,
+                    copula=copula,
+                    params_list=params_list
+                )
+                log.logging.info(
+                    "%s %s",
+                    copula,
+                    log_samic(params_list, copula_list)
+                )
         params_list['alpha_old'] = params_list['alpha']
         params_list['l_state'] = expectation_l(
             u_values=u_values,
@@ -377,23 +354,10 @@ def samic(x_score, threshold=1e-4):
         params_list['alpha'] = minimize_alpha(
             l_state=params_list['l_state']
         )
-        for copula in copula_list:
-            params_list[copula]['pi_old'] = params_list[copula]['pi']
-            params_list[copula]['theta_old'] = params_list[copula]['theta']
-            params_list[copula]['k_state'] = expectation_k(
-                u_values=u_values,
-                copula=copula,
-                params_list=params_list,
-            )
-            params_list[copula]['pi'] = minimize_pi(
-                k_state=params_list[copula]['k_state']
-            )
-            params_list[copula]['theta'] = minimize_theta(
-                u_values=u_values,
-                copula=copula,
-                params_list=params_list
-            )
-        log.logging.info("%s", log_samic(params_list, copula_list))
+        log.logging.info(
+            "%s",
+            log_samic(params_list, copula_list)
+        )
     return local_idr(
         u_values=u_values,
         copula_list=copula_list,
@@ -413,10 +377,10 @@ def log_samic(params_list, copula_list):
                   )
     for copula in copula_list:
         log_str += str(
-            ', "' + copula + '": {"theta": ' +
+            ', \n"' + copula + '": {"theta": ' +
             str(params_list[copula]['theta']) + ', ' +
             '"pi": ' + str(params_list[copula]['pi']) + '}')
-    return log_str + '}'
+    return log_str + ' }'
 
 
 if __name__ == "__main__":
