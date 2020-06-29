@@ -68,7 +68,7 @@ boley_data %>% select(
     col_names = F
   )
 
-system("midr -m data/boley_merge.NarrowPeak -f data/boley_r1.NarrowPeak data/boley_r2.NarrowPeak -mf max -o results_archimedean -v")
+system("midr -m data/boley_merge.NarrowPeak -f data/boley_r1.NarrowPeak data/boley_r2.NarrowPeak -mf max -o results_archimedean -v --cpu 2")
 system("midr -m data/boley_merge.NarrowPeak -f data/boley_r1.NarrowPeak data/boley_r2.NarrowPeak -mf max -o results_gaussian -mt gaussian -v")
 
 samic_data <- read_tsv("results_archimedean_max/idr_boley_r1.NarrowPeak",

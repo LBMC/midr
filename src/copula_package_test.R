@@ -11,7 +11,8 @@ x <- matrix(c(0.42873569, 0.18285458, 0.9514195,
 0.22437343, 0.16907646, 0.5740400,
 0.66752741, 0.69487362, 0.3329266), ncol=3, byrow=T)
 
-copClayton@dacopula(x, 0.2, log=T)
+copClayton@dacopula(x, 1.2, log=F)
+copClayton@dacopula(x, 1.2, log=T)
 
 copClayton@iPsi(x, 0.2, log=F)
 copClayton@iPsi(x, 0.2, log=T)
@@ -24,8 +25,11 @@ copFrank@psi(x, -37)
 copFrank@psi(x, -10)
 copFrank@iPsi(x, 0.2, log=F)
 copFrank@dDiag(apply(x, 1, max), 0.2, 3, log=F)
-copFrank@dacopula(x, 0.2, log=F, Li.log.arg = F)
-copFrank@dacopula(x, 0.2, log=T, Li.log.arg = F)
+copFrank@dacopula(x, 5.0, log=F, Li.log.arg = F)
+copFrank@dacopula(x, 5.0, log=T, Li.log.arg = T)
+
+polylog(c(0.01556112, 0.00108968, 0.00889932), -2, method = "negI-s-Eulerian", log=T)
+polylog(log(c(0.01556112, 0.00108968, 0.00889932)), -2, method = "negI-s-Eulerian", log=T, is.log.z = T)
 
 copGumbel@iPsi(x, 1.2, log=F)
 copGumbel@iPsi(x, 1.2, log=T)
