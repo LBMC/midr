@@ -38,14 +38,14 @@ def pdf_copula_plot(lower, upper,
     ax.plot(
         list(
             map(lambda x: pdf_function(
-                theta=x,
+                x,
                 u_values=u_values,
                 copula=copula,
                 params_list=params_list
             ), np.linspace(
                 start=lower,
                 stop=upper,
-                num=1000
+                num=100
             )
             )
         )

@@ -880,7 +880,7 @@ def polylog(z, s, is_log_z=True):
     n = -int(s)
     if is_log_z:
         w = z
-        z = np.exp(z)
+        z = np.exp(w)
         return np.log(c_arch.polyneval(eulerian_all(n), z)) + \
                w - np.array(n + 1.0) * np.array(c_arch.log1mexpvec(-w))
     else:
@@ -907,9 +907,9 @@ def pdf_frank(u_values, theta, is_log=False):
     ...    [0.22437343, 0.16907646, 0.5740400],
     ...    [0.66752741, 0.69487362, 0.3329266]
     ...    ]),
-    ...    0.2)
-    array([0.94796044, 1.0745818 , 0.91117584, 0.98067908, 0.99144693,
-           0.99394317, 0.94162409, 0.96927238, 1.02271253, 0.98591628])
+    ...    5.0)
+    array([0.1523755 , 1.83967836, 0.02685253, 0.15136271, 0.18938126,
+           1.44811357, 0.0905827 , 0.21205361, 1.08804124, 0.74757725])
     >>> pdf_frank(np.array([
     ...    [0.42873569, 0.18285458, 0.9514195],
     ...    [0.25148149, 0.05617784, 0.3378213],
@@ -922,10 +922,10 @@ def pdf_frank(u_values, theta, is_log=False):
     ...    [0.22437343, 0.16907646, 0.5740400],
     ...    [0.66752741, 0.69487362, 0.3329266]
     ...    ]),
-    ...    0.2,
+    ...    5.0,
     ...    is_log=True)
-    array([-0.05344251,  0.07193156, -0.09301938, -0.01951001, -0.00858986,
-           -0.00607524, -0.06014913, -0.03120962,  0.02245844, -0.01418384])
+    array([-1.88140742,  0.60959075, -3.61739525, -1.8880763 , -1.66399306,
+            0.37026172, -2.40149208, -1.55091616,  0.08437905, -0.29091763])
     """
     assert not np.isnan(theta), "pdf_frank: theta is nan"
     if theta == 0.0:
@@ -936,8 +936,7 @@ def pdf_frank(u_values, theta, is_log=False):
         lp = log1mexp(theta)
         lpu = log1mexp(theta * u_values)
         lu = np.sum(lpu, axis=1)
-        liarg = lp + np.sum(lpu - lp, axis=1)
-        li = polylog(liarg, -(d - 1.0))
+        li = polylog(lp + np.sum(lpu - lp, axis=1), -(d - 1.0))
         copula = (d - 1.0) * np.log(theta) + li - theta * usum - lu
     if is_log:
         return copula
