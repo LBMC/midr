@@ -21,11 +21,15 @@ import midr.archimedean as archimedean
 from midr.idr import compute_empirical_marginal_cdf, compute_rank, sim_m_samples
 import midr.archimediean_plots as archimediean_plots
 
-
 COPULA_DENSITY = {
     'clayton': archimedean.pdf_clayton,
     'frank': archimedean.pdf_frank,
     'gumbel': archimedean.pdf_gumbel
+}
+DMLE_COPULA = {
+    'clayton': archimedean.dmle_copula_clayton,
+    'frank': archimedean.dmle_copula_frank,
+    'gumbel': archimedean.dmle_copula_gumbel
 }
 
 
@@ -58,7 +62,8 @@ def expectation_k(u_values, copula, params_list):
     """
     k_state = params_list[copula]['pi'] / (
         params_list[copula]['pi'] +
-        (1.0 - params_list[copula]['pi']) * COPULA_DENSITY[copula](
+        (1.0 - params_list[copula]['pi']) *
+        COPULA_DENSITY[copula](
             u_values,
             params_list[copula]['theta'],
         )
@@ -76,16 +81,21 @@ def expectation_l(u_values, copula_list, params_list):
     """
     l_state = np.zeros((u_values.shape[0], len(copula_list)))
     dcopula = np.zeros((u_values.shape[0], len(copula_list)))
-    for i in range(len(copula_list)):
-        dcopula[:, i] = (params_list['alpha'][i] *
-                         params_list[copula_list[i]]['pi'] *
-                         COPULA_DENSITY[copula_list[i]](
-                             u_values,
-                             params_list[copula_list[i]]['theta'],
-                         )
-                         )
-    for i in range(len(copula_list)):
-        l_state[:, i] = dcopula[:, i] / np.sum(dcopula, axis=1)
+    for copula in COPULA_DENSITY.keys():
+        dcopula[:, params_list['order'][copula]] = (
+                params_list['alpha'][params_list['order'][copula]] *
+                (
+                        params_list[copula]['pi'] +
+                        (1 - params_list[copula]['pi']) *
+                        COPULA_DENSITY[copula](
+                            u_values,
+                            params_list[copula]['theta'],
+                        )
+                )
+        )
+    for copula in COPULA_DENSITY.keys():
+        l_state[:, params_list['order'][copula]] = \
+            dcopula[:, params_list['order'][copula]] / np.sum(dcopula, axis=1)
     return l_state
 
 
@@ -98,18 +108,20 @@ def density_mix(theta, u_values, copula, params_list):
     :return:
     """
     return -np.sum(
-        np.log(params_list[copula]['pi'] +
-        (1 - params_list[copula]['pi']) *
-        COPULA_DENSITY[copula](
-            u_values,
-            theta,
-            is_log=False
-        )),
+        np.log(
+            params_list[copula]['pi'] +
+            (1 - params_list[copula]['pi']) *
+            COPULA_DENSITY[copula](
+                u_values,
+                theta,
+                is_log=False
+            )
+        ),
         axis=0
     )
 
 
-def local_idr(u_values, copula_list, params_list):
+def local_idr(u_values, params_list):
     """
     Compute local idr for the samic method
     :param u_values:
@@ -117,14 +129,16 @@ def local_idr(u_values, copula_list, params_list):
     :param params_list:
     :return:
     """
-    lidr = params_list[copula_list[i]]['pi']
+    lidr = 0.0
     lidr_denum = 0.0
-    for i in range(len(copula_list)):
+    for copula in COPULA_DENSITY.keys():
+        lidr += params_list['alpha'][params_list['order'][copula]] * \
+                params_list[copula]['pi']
         lidr_denum += params_list['alpha'][i] * \
-                      (1 - params_list[copula_list[i]]['pi']) * \
-                      COPULA_DENSITY[copula_list[i]](
+                      (1 - params_list[copula]['pi']) * \
+                      COPULA_DENSITY[copula](
                           u_values,
-                          params_list[copula_list[i]]['theta'],
+                          params_list[copula]['theta'],
                       )
     return lidr / (lidr + lidr_denum)
 
@@ -300,18 +314,12 @@ def samic(x_score, threshold=1e-4):
     log.logging.info("%s", "computing idr")
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
     copula_list = ["clayton", "frank", "gumbel"]
-    dmle_copula = {
-        'clayton': archimedean.dmle_copula_clayton,
-        'frank': archimedean.dmle_copula_frank,
-        'gumbel': archimedean.dmle_copula_gumbel
-    }
     params_list = dict()
     params_list['order'] = dict()
     i = 0
-    copula = copula_list[0]
-    for copula in copula_list:
+    for copula in COPULA_DENSITY.keys():
         params_list[copula] = {
-            'theta': dmle_copula[copula](u_values),
+            'theta': DMLE_COPULA[copula](u_values),
             'theta_old': np.nan,
             'pi': 0.5,
             'pi_old': np.Inf,
@@ -360,7 +368,6 @@ def samic(x_score, threshold=1e-4):
         )
     return local_idr(
         u_values=u_values,
-        copula_list=copula_list,
         params_list=params_list
     )
 
