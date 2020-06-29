@@ -33,18 +33,17 @@ DMLE_COPULA = {
 }
 
 
-def delta(copula_list, params_list, threshold):
+def delta(params_list, threshold):
     """
     Return true if the difference between two iteration of samic if less than
     the threhsold
-    :param copula_list: str with the copula name
     :param params_list: list of model parameters
     :param threshold: flood withe the minimal difference to reach
     :return: bool
     """
     max_delta = list()
     max_delta.append(max(abs(params_list['alpha'] - params_list['alpha_old'])))
-    for copula in copula_list:
+    for copula in COPULA_DENSITY.keys():
         max_delta.append(max([
             abs(params_list[copula]['pi'] - params_list[copula]['pi_old']),
             abs(params_list[copula]['theta'] - params_list[copula]['theta_old'])
@@ -52,35 +51,15 @@ def delta(copula_list, params_list, threshold):
     return max(max_delta) >= threshold
 
 
-def expectation_k(u_values, copula, params_list):
-    """
-    compute proba for each line to be in one component or the other
-    :param u_values:
-    :param copula:
-    :param params_list:
-    :return:
-    """
-    k_state = params_list[copula]['pi'] / (
-        params_list[copula]['pi'] +
-        (1.0 - params_list[copula]['pi']) *
-        COPULA_DENSITY[copula](
-            u_values,
-            params_list[copula]['theta'],
-        )
-    )
-    return np.minimum(k_state, 1.0)
-
-
-def expectation_l(u_values, copula_list, params_list):
+def expectation_l(u_values, params_list):
     """
     compute proba for each copula mix to describe the data
     :param u_values:
-    :param copula_list:
     :param params_list:
     :return:
     """
-    l_state = np.zeros((u_values.shape[0], len(copula_list)))
-    dcopula = np.zeros((u_values.shape[0], len(copula_list)))
+    l_state = np.zeros((u_values.shape[0], len(COPULA_DENSITY)))
+    dcopula = np.zeros((u_values.shape[0], len(COPULA_DENSITY)))
     for copula in COPULA_DENSITY.keys():
         dcopula[:, params_list['order'][copula]] = (
                 params_list['alpha'][params_list['order'][copula]] *
@@ -99,22 +78,78 @@ def expectation_l(u_values, copula_list, params_list):
     return l_state
 
 
-def density_mix(theta, u_values, copula, params_list):
+def density_pi(pi, u_values, copula, params_list):
     """
     pdf of the samic mixture for a given copula
     :param u_values:
     :param copula:
     :param theta:
     :return:
+    >>> density_pi(
+    ...    pi=0.2,
+    ...    u_values = np.array([
+    ...       [0.42873569, 0.18285458, 0.9514195],
+    ...       [0.25148149, 0.05617784, 0.3378213],
+    ...       [0.79410993, 0.76175687, 0.0709562],
+    ...       [0.02694249, 0.45788802, 0.6299574],
+    ...       [0.39522060, 0.02189511, 0.6332237],
+    ...       [0.66878367, 0.38075101, 0.5185625],
+    ...       [0.90365653, 0.19654621, 0.6809525],
+    ...       [0.28607729, 0.82713755, 0.7686878],
+    ...       [0.22437343, 0.16907646, 0.5740400],
+    ...       [0.66752741, 0.69487362, 0.3329266]
+    ...    ]),
+    ...    copula = "frank",
+    ...    params_list = {"frank": {'theta': 2}}
+    ... )
+    2.0863120778575763
+    """
+    return -np.sum(
+        np.log(
+            pi +
+            (1 - pi) *
+            COPULA_DENSITY[copula](
+                u_values=u_values,
+                theta=params_list[copula]['theta']
+            )
+        ),
+        axis=0
+    )
+
+
+def density_theta(theta, u_values, copula, params_list):
+    """
+    pdf of the samic mixture for a given copula
+    :param u_values:
+    :param copula:
+    :param theta:
+    :return:
+    >>> density_theta(
+    ...    theta=2,
+    ...    u_values = np.array([
+    ...       [0.42873569, 0.18285458, 0.9514195],
+    ...       [0.25148149, 0.05617784, 0.3378213],
+    ...       [0.79410993, 0.76175687, 0.0709562],
+    ...       [0.02694249, 0.45788802, 0.6299574],
+    ...       [0.39522060, 0.02189511, 0.6332237],
+    ...       [0.66878367, 0.38075101, 0.5185625],
+    ...       [0.90365653, 0.19654621, 0.6809525],
+    ...       [0.28607729, 0.82713755, 0.7686878],
+    ...       [0.22437343, 0.16907646, 0.5740400],
+    ...       [0.66752741, 0.69487362, 0.3329266]
+    ...    ]),
+    ...    copula = "frank",
+    ...    params_list = {"frank": {'pi': 0.16}}
+    ... )
+    2.238971254704331
     """
     return -np.sum(
         np.log(
             params_list[copula]['pi'] +
             (1 - params_list[copula]['pi']) *
             COPULA_DENSITY[copula](
-                u_values,
-                theta,
-                is_log=False
+                u_values=u_values,
+                theta=theta
             )
         ),
         axis=0
@@ -125,7 +160,6 @@ def local_idr(u_values, params_list):
     """
     Compute local idr for the samic method
     :param u_values:
-    :param copula_list:
     :param params_list:
     :return:
     """
@@ -134,20 +168,13 @@ def local_idr(u_values, params_list):
     for copula in COPULA_DENSITY.keys():
         lidr += params_list['alpha'][params_list['order'][copula]] * \
                 params_list[copula]['pi']
-        lidr_denum += params_list['alpha'][i] * \
+        lidr_denum += params_list['alpha'][params_list['order'][copula]] * \
                       (1 - params_list[copula]['pi']) * \
                       COPULA_DENSITY[copula](
                           u_values,
                           params_list[copula]['theta'],
                       )
     return lidr / (lidr + lidr_denum)
-
-
-def minimize_pi(k_state):
-    """
-    compute maximization of pi
-    """
-    return float(sum(k_state)) / float(len(k_state))
 
 
 def minimize_alpha(l_state):
@@ -158,78 +185,6 @@ def minimize_alpha(l_state):
     alpha[:-1] = np.sum(l_state[:, :-1], axis=0) / float(l_state.shape[0])
     alpha[-1] = 1.0 - sum(alpha)
     return alpha
-
-
-def constraint(x, theta_min=np.nan, theta_max=np.nan, return_min=True,
-               eps=float_info.min):
-    """
-    compute contraint for theta ineq
-    :param x:
-    :param theta_min:
-    :param theta_max:
-    :param return_min
-    :param eps:
-    :return:
-    """
-    interval = [x - (theta_min + eps), (theta_max - eps) - x]
-    if interval[0] > interval[1]:
-        interval[1] = interval[0] + 1.0
-    if return_min:
-        return interval[0]
-    else:
-        return interval[1]
-
-
-def build_constraint(copula):
-    """
-    write consts for a given copula
-    :param copula:
-    :return:
-    """
-    thetas = {
-        'clayton': {
-            'theta_min': 0.0,
-            'theta_max': 1000.0
-        },
-        'frank': {
-            'theta_min': 0.0,
-            'theta_max': 744.5
-        },
-        'gumbel': {
-            'theta_min': 1.0,
-            'theta_max': 100.0
-        }
-    }
-
-    def consts_min(x):
-        """
-        Return minimum for the range
-        :param x:
-        :return:
-        """
-        return constraint(
-            x=x,
-            theta_min=thetas[copula]['theta_min'],
-            theta_max=thetas[copula]['theta_max'],
-        )
-
-    def consts_max(x):
-        """
-        Return maximum for the range
-        :param x:
-        :return:
-        """
-        return constraint(
-            x=x,
-            theta_min=thetas[copula]['theta_min'],
-            theta_max=thetas[copula]['theta_max'],
-            return_min=False
-        )
-
-    return [
-        {'type': 'ineq', 'fun': consts_min},
-        {'type': 'ineq', 'fun': consts_max}
-    ]
 
 
 def build_bounds(copula, eps=1e-4):
@@ -258,6 +213,41 @@ def build_bounds(copula, eps=1e-4):
     )
 
 
+def minimize_pi(u_values, copula, params_list):
+    """
+    find theta that minimize the likelihood of the copula density
+    :param u_values:
+    :param copula:
+    :param params_list:
+    :return:
+    """
+    log.logging.debug("%s", copula + " minimize_pi")
+    old_pi = params_list[copula]['pi']
+    log.logging.debug("%s", str(old_pi) + " old_pi")
+    if log.logging.root.level == log.logging.DEBUG:
+        archimediean_plots.pdf_copula_plot(
+            lower=0.0,
+            upper=1.0,
+            copula=copula,
+            pdf_function=density_pi,
+            u_values=u_values,
+            params_list=params_list,
+        )
+    res = minimize(
+        fun=density_pi,
+        args=(u_values, copula, params_list),
+        x0=old_pi,
+        bounds=[(0.0, 1.0)],
+    )
+    log.logging.debug("%s", res)
+    if np.isnan(res.x[0]):
+        log.logging.debug("%s", str(old_pi) + " new_pi = old_pi")
+        return old_pi
+    else:
+        log.logging.debug("%s", str(res.x[0]) + " new_pi")
+        return res.x[0]
+
+
 def minimize_theta(u_values, copula, params_list):
     """
     find theta that minimize the likelihood of the copula density
@@ -275,12 +265,12 @@ def minimize_theta(u_values, copula, params_list):
             lower=build_bounds(copula)[0],
             upper=build_bounds(copula)[1],
             copula=copula,
-            pdf_function=density_mix,
+            pdf_function=density_theta,
             u_values=u_values,
             params_list=params_list,
         )
     res = minimize(
-        fun=density_mix,
+        fun=density_theta,
         args=(u_values, copula, params_list),
         x0=old_theta,
         bounds=[build_bounds(copula)],
@@ -313,7 +303,6 @@ def samic(x_score, threshold=1e-4):
     """
     log.logging.info("%s", "computing idr")
     u_values = compute_empirical_marginal_cdf(compute_rank(x_score))
-    copula_list = ["clayton", "frank", "gumbel"]
     params_list = dict()
     params_list['order'] = dict()
     i = 0
@@ -327,36 +316,31 @@ def samic(x_score, threshold=1e-4):
         }
         params_list['order'][copula] = i
         i += 1
-    params_list['l_state'] = np.zeros((u_values.shape[0], len(copula_list)))
-    params_list['alpha'] = np.repeat(1.0 / len(copula_list), len(copula_list))
-    params_list['alpha_old'] = params_list['alpha']
-    while delta([copula], params_list, threshold):
-        while delta([copula], params_list, threshold):
-            for copula in copula_list:
-                params_list[copula]['pi_old'] = params_list[copula]['pi']
-                params_list[copula]['theta_old'] = params_list[copula]['theta']
-                params_list[copula]['k_state'] = expectation_k(
-                    u_values=u_values,
-                    copula=copula,
-                    params_list=params_list,
-                )
-                params_list[copula]['pi'] = minimize_pi(
-                    k_state=params_list[copula]['k_state']
-                )
-                params_list[copula]['theta'] = minimize_theta(
-                    u_values=u_values,
-                    copula=copula,
-                    params_list=params_list
-                )
-                log.logging.info(
-                    "%s %s",
-                    copula,
-                    log_samic(params_list, copula_list)
-                )
-        params_list['alpha_old'] = params_list['alpha']
+    params_list['l_state'] = np.zeros((u_values.shape[0], len(COPULA_DENSITY)))
+    params_list['alpha'] = np.repeat(1.0 / len(COPULA_DENSITY), len(COPULA_DENSITY))
+    params_list['alpha_old'] = params_list['alpha'][:]
+    while delta(params_list, threshold):
+        for copula in COPULA_DENSITY:
+            params_list[copula]['pi_old'] = params_list[copula]['pi']
+            params_list[copula]['theta_old'] = params_list[copula]['theta']
+            params_list[copula]['pi'] = minimize_pi(
+                u_values=u_values,
+                copula=copula,
+                params_list=params_list
+            )
+            params_list[copula]['theta'] = minimize_theta(
+                u_values=u_values,
+                copula=copula,
+                params_list=params_list
+            )
+            log.logging.info(
+                "%s %s",
+                copula,
+                log_samic(params_list)
+            )
+        params_list['alpha_old'] = params_list['alpha'][:]
         params_list['l_state'] = expectation_l(
             u_values=u_values,
-            copula_list=copula_list,
             params_list=params_list,
         )
         params_list['alpha'] = minimize_alpha(
@@ -364,7 +348,7 @@ def samic(x_score, threshold=1e-4):
         )
         log.logging.info(
             "%s",
-            log_samic(params_list, copula_list)
+            log_samic(params_list)
         )
     return local_idr(
         u_values=u_values,
@@ -372,17 +356,16 @@ def samic(x_score, threshold=1e-4):
     )
 
 
-def log_samic(params_list, copula_list):
+def log_samic(params_list):
     """
     return str of pseudo_likelihood parameter estimate
     :param params_list:
-    :param copula_list:
     :return:
     """
     log_str = str('{' +
                   '"alpha": ' + str(params_list['alpha'])
                   )
-    for copula in copula_list:
+    for copula in COPULA_DENSITY.keys():
         log_str += str(
             ', \n"' + copula + '": {"theta": ' +
             str(params_list[copula]['theta']) + ', ' +
