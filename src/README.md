@@ -1,5 +1,3 @@
-# This project can now be found at https://gitbio.ens-lyon.fr/LBMC/sbdm/midr
-
 # IDR
 
 This tool is designed to compute the Irreproducible Discovery Rate (IDR)
